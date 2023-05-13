@@ -8,16 +8,16 @@ Accelerometer::Accelerometer(int port, int cache) {
         velocity[i] = (float *)(malloc((sizeof(float) * cache)));
         position[i] = (float *)(malloc((sizeof(float) * cache)));
     }
-}
+};
 
 void setAcceleration() {
 
-}
+};
 
 void setVelocity() {
 
-}
+};
 
 void Accelerometer::run() {
 
-}
+};

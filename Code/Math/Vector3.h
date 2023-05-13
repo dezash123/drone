@@ -5,8 +5,9 @@
 class Vector3 {
 public:
     float x, y, z;
-
     operator+(Vector3 other);
+    operator-(Vector3 other);
+    operator*(float scalar);
 };
 
 
