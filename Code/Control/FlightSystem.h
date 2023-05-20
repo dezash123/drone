@@ -1,6 +1,6 @@
 #ifndef DRONE_FLIGHTSYSTEM_H
 #define DRONE_FLIGHTSYSTEM_H
-#include "FlightMotor.h"
+#include "../Output/FlightMotor.h"
 #include "Runnable.h"
 class FlightSystem: Runnable {
 public:

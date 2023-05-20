@@ -4,4 +4,4 @@ project(drone)
 set(CMAKE_CXX_STANDARD 14)
 
 add_executable(drone
-        FlightSystem.cpp FlightSystem.h FlightMotor.cpp FlightMotor.h Gyro.cpp Gyro.h Main.cpp Main.h Accelerometer.cpp Accelerometer.h Runnable.h Vector3.cpp Vector3.h Control/Drone.cpp Control/Drone.h)
+        Control/FlightSystem.cpp Control/FlightSystem.h Output/FlightMotor.cpp Output/FlightMotor.h Main.cpp Main.h Math/Vector3.cpp Math/Vector3.h Control/Drone.cpp Control/Drone.h Control/Router.cpp Control/Router.h Sensors/IMU.cpp Sensors/IMU.h)

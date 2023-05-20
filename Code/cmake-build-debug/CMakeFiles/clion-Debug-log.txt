@@ -6,17 +6,5 @@ CMake Warning (dev) at CMakeLists.txt:2 (project):
 This warning is for project developers.  Use -Wno-dev to suppress it.
 
 -- Configuring done (0.0s)
-CMake Error at CMakeLists.txt:6 (add_executable):
-  Cannot find source file:
-
-    FlightSystem.cpp
-
-  Tried extensions .c .C .c++ .cc .cpp .cxx .cu .mpp .m .M .mm .ixx .cppm .h
-  .hh .h++ .hm .hpp .hxx .in .txx .f .F .for .f77 .f90 .f95 .f03 .hip .ispc
-
-
-CMake Error at CMakeLists.txt:6 (add_executable):
-  No SOURCES given to target: drone
-
-
-CMake Generate step failed.  Build files cannot be regenerated correctly.
+-- Generating done (0.0s)
+-- Build files have been written to: /home/dmehta24/Shared/drone/Code/cmake-build-debug
