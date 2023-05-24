@@ -111,7 +111,7 @@
       },
       "rules": {
         "max_error": 0.005,
-        "min_clearance": 0.0,
+        "min_clearance": 0.026,
         "min_connection": 0.0,
         "min_copper_edge_clearance": 0.3,
         "min_hole_clearance": 0.25,
@@ -673,7 +673,7 @@
       "idf": "",
       "netlist": "",
       "specctra_dsn": "",
-      "step": "Drone_PCB.step",
+      "step": "../../Model/V2.step",
       "vrml": ""
     },
     "page_layout_descr_file": ""
