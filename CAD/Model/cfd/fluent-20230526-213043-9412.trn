@@ -1,0 +1,546 @@
+Auto-Transcript Start Time:  21:30:43, 26 May 2023 Eastern Daylight Time 
+Current Directory: "D:\drone\CAD\Model\cfd"
+
+              Welcome to ANSYS Fluent 2023 R1
+
+              Copyright 1987-2023 ANSYS, Inc. All Rights Reserved.
+              Unauthorized use, distribution or duplication is prohibited.
+              This product is subject to U.S. laws governing export and re-export.
+              For full Legal Notice, see documentation.
+
+Build Time: Nov 28 2022 09:53:10 EST  Build Id: 10208  
+ 
+Connected License Server List:	
+
+     --------------------------------------------------------------
+     This is a student version of ANSYS FLUENT. Usage of this product
+     license is limited to the terms and conditions specified in your ANSYS
+     license form, additional terms section.
+     --------------------------------------------------------------
+Host spawning Node 0 on machine "DesmondWindowsBlade14" (win64).
+
+------------------------------------------------------------------------------------------------
+ID    Hostname              Core  O.S.         PID    Vendor                                   
+------------------------------------------------------------------------------------------------
+n3    DesmondWindowsBlade1  4/16  Windows-x64  2980   AMD Ryzen 9 5900HX with Radeon Graphics  
+n2    DesmondWindowsBlade1  3/16  Windows-x64  16944  AMD Ryzen 9 5900HX with Radeon Graphics  
+n1    DesmondWindowsBlade1  2/16  Windows-x64  8376   AMD Ryzen 9 5900HX with Radeon Graphics  
+n0*   DesmondWindowsBlade1  1/16  Windows-x64  16520  AMD Ryzen 9 5900HX with Radeon Graphics  
+host  DesmondWindowsBlade1        Windows-x64  4568   AMD Ryzen 9 5900HX with Radeon Graphics  
+
+MPI Option Selected: intel
+Selected system interconnect: default
+------------------------------------------------------------------------------------------------
+
+Cleanup script file is D:\\drone\\CAD\\Model\\cfd\\cleanup-fluent-DesmondWindowsBlade14-4568.bat
+
+Posting ANSYS Product Improvement Program startup data
+Done.
+
+> (cx-gui-do cx-activate-item "Key Behavioral Changes*PanelButtons*PushButton1(OK)")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|General"))
+(cx-gui-do cx-activate-item "Ribbon*Frame1*Frame3(Physics)*Table1*Table3(Materials)*PushButton1(Create/Edit)")
+(cx-gui-do cx-set-list-selections "Create/Edit Materials*Table1*Frame1*Table1*DropDownList3(Material Type)" '( 1))
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Table1*DropDownList3(Material Type)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-activate-item "MenuBar*ReadSubMenu*Mesh...")
+(cx-gui-do cx-set-file-dialog-entries "Select File" '( "toroidal.msh.h5") "CFF Mesh Files (*.msh.h5 )")
+Fast-loading "C:\PROGRA~1\ANSYSI~1\ANSYSS~1\v231\fluent\fluent23.1.0\\addons\afd\lib\hdfio.bin"
+Done.
+Multicore SMT processors detected. Processor affinity set!
+
+Reading from DesmondWindowsBlade14:"D:/drone/CAD/Model/cfd/toroidal.msh.h5" in NODE0 mode ...
+  Reading mesh ...
+Warning: reading 6 partition grid onto 4 compute node machine.
+         will auto partition.
+       34427 cells,     1 cell zone  ...
+          34427 polyhedra cells,  zone id: 83
+      159090 faces,     2 face zones ...
+         146410 polygonal interior faces,  zone id: 82
+          12680 polygonal wall faces,  zone id: 8
+      113523 nodes,     4 node zones ...
+
+Building...
+     mesh
+	auto partitioning mesh by Metis (fast),
+	distributing mesh
+		parts....,
+		faces....,
+		nodes....,
+		cells....,
+        bandwidth reduction using Reverse Cuthill-McKee: 8972/550 = 16.3127
+     materials,
+     interface,
+     domains,
+     zones,
+	Skipping thread 7 of domain 1 (not referenced by grid).
+	interior--freeparts-part-1
+	freeparts-part-1:1
+	freeparts-part-1
+     parallel,
+Done.
+Mesh is now scaled to meters.
+(cx-gui-do cx-activate-item "General*Table1*ButtonBox1(Mesh)*PushButton2(Display)")
+(cx-gui-do cx-activate-item "Mesh Display*PanelButtons*PushButton1(OK)")
+(cx-gui-do cx-activate-item "Mesh Display*PanelButtons*PushButton2(Cancel)")
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-set-camera-relative '(-0.0208869 -0.0551682 0.0972893) '(0 0 0) '(0.00481334 0.00679165 0.0048846) 0 0)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-set-camera-relative '(0 0 0) '(0 0 0) '(0 0 0) 0 0)
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Fluid|air"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Fluid|air"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Fluid|air"))
+(cx-gui-do cx-activate-item "NavigationPane*Frame2*Table1*List_Tree2")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Fluid|air"))
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-activate-item "NavigationPane*Frame2*Table1*List_Tree2")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Frame2*ButtonBox2*PushButton1(Fluent Database)")
+(cx-gui-do cx-activate-item "Fluent Database Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-set-toggle-button2 "Create/Edit Materials*Table1*Frame1*Frame2*ToggleBox1(Order Materials by)*Chemical Formula" #t)
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Frame2*ToggleBox1(Order Materials by)*Chemical Formula")
+(cx-gui-do cx-set-toggle-button2 "Create/Edit Materials*Table1*Frame1*Frame2*ToggleBox1(Order Materials by)*Name" #t)
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Frame2*ToggleBox1(Order Materials by)*Name")
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Frame2*ButtonBox2*PushButton3(User-Defined Database)")
+(cx-gui-do cx-activate-item "Open Database*PanelButtons*PushButton2(Cancel)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Frame2*ButtonBox2*PushButton2(GRANTA MDS Database)")
+(cx-gui-do cx-activate-item "GRANTA MDS Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Frame2*ButtonBox2*PushButton1(Fluent Database)")
+(cx-gui-do cx-activate-item "Fluent Database Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-set-list-selections "Create/Edit Materials*Table2*Table1(Properties)*DropDownList4(Density)" '( 0))
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table2*Table1(Properties)*DropDownList4(Density)")
+
+Error: No user-defined functions of type udf-type-property have been loaded.
+Error Object: #f
+(cx-gui-do cx-activate-item "Error*OK")
+(cx-gui-do cx-set-list-selections "Create/Edit Materials*Table2*Table1(Properties)*DropDownList4(Density)" '( 1))
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table2*Table1(Properties)*DropDownList4(Density)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton3(Change/Create)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-list-tree-right-click "NavigationPane*Frame2*Table1*List_Tree2" )
+(cx-gui-do cx-activate-item "MenuBar*PopupMenuTree-aluminum*Edit...")
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton4(Delete)")
+
+Error: delete-material: still in use by freeparts-part-1.
+Error Object: aluminum
+(cx-gui-do cx-activate-item "Error*OK")
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton1(Close)")
+(cx-use-window-id 51)
+(cxg-clear-all-selections (cx-active-window))
+(cxg-add-surfaces-to-selection '(freeparts-part-1:1) (cx-active-window))
+(cx-use-window-id 51)
+(build-popup-menu)
+(cx-gui-do cx-activate-item "Quick Edit*Table1*PushButton4(icon_close)")
+(cx-use-window-id 51)
+(cxg-clear-all-selections (cx-active-window))
+(cxg-add-surfaces-to-selection '(freeparts-part-1:1) (cx-active-window))
+(cx-gui-do cx-activate-item "Quick Edit*PanelButtons*PushButton1(Close)")
+(cx-use-window-id 51)
+(cxg-clear-all-selections (cx-active-window))
+(cxg-add-surfaces-to-selection '(freeparts-part-1:1) (cx-active-window))
+(cx-gui-do cx-activate-item "Quick Edit*Table1*PushButton4(icon_close)")
+(cx-gui-do cx-set-toggle-button2 "Ribbon*Frame1*Frame3(Physics)*Table1*Table3(Models)*CheckButton1(Energy)" #t)
+(cx-gui-do cx-activate-item "Ribbon*Frame1*Frame3(Physics)*Table1*Table3(Models)*CheckButton1(Energy)")
+(cx-gui-do cx-set-toggle-button2 "Ribbon*Frame1*Frame3(Physics)*Table1*Table3(Models)*CheckButton1(Energy)" #f)
+(cx-gui-do cx-activate-item "Ribbon*Frame1*Frame3(Physics)*Table1*Table3(Models)*CheckButton1(Energy)")
+(cx-gui-do cx-activate-item "Ribbon*Frame1*Frame3(Physics)*Table1*Table3(Solver)*PushButton1(General)")
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(handle-key "")
+(cxg-clear-all-selections (cx-active-window))
+(cxg-add-surfaces-to-selection '() (cx-active-window))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|General"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|General"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|General"))
+(cx-gui-do cx-activate-item "NavigationPane*Frame2*Table1*List_Tree2")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|General"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Models|Energy (Off)"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Models|Energy (Off)"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Models|Energy (Off)"))
+(cx-gui-do cx-activate-item "NavigationPane*Frame2*Table1*List_Tree2")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Models|Energy (Off)"))
+(cx-gui-do cx-set-toggle-button2 "Energy*Table1(Energy)*ToggleBox1*CheckButton1(Energy Equation)" #t)
+(cx-gui-do cx-activate-item "Energy*Table1(Energy)*ToggleBox1*CheckButton1(Energy Equation)")
+(cx-gui-do cx-activate-item "Energy*PanelButtons*PushButton2(Cancel)")
+(cx-gui-do cx-set-toggle-button2 "General*Table1*Table3*CheckButton1(Gravity)" #t)
+(cx-gui-do cx-activate-item "General*Table1*Table3*CheckButton1(Gravity)")
+(cx-gui-do cx-set-toggle-button2 "General*Table1*Table3*CheckButton1(Gravity)" #f)
+(cx-gui-do cx-activate-item "General*Table1*Table3*CheckButton1(Gravity)")
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-activate-item "NavigationPane*Frame2*Table1*List_Tree2")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-set-real-entry-list "Create/Edit Materials*RealEntry10" '( 1240))
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-activate-item "NavigationPane*Frame2*Table1*List_Tree2")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-set-text-entry "Create/Edit Materials*Table1*Frame1*Table1*TextEntry1(Name)" "pla")
+(cx-gui-do cx-set-text-entry "Create/Edit Materials*Table1*Frame1*Table1*TextEntry2(Chemical Formula)" "pla")
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Frame2*ButtonBox2*PushButton3(User-Defined Database)")
+(cx-gui-do cx-activate-item "Open Database*PushButton2(Browse)")
+(cx-gui-do cx-activate-item "Open Database*PanelButtons*PushButton2(Cancel)")
+(cx-gui-do cx-set-list-selections "Create/Edit Materials*Table2*Table1(Properties)*DropDownList4(Density)" '( 0))
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table2*Table1(Properties)*DropDownList4(Density)")
+
+Error: No user-defined functions of type udf-type-property have been loaded.
+Error Object: #f
+(cx-gui-do cx-activate-item "Error*OK")
+(cx-gui-do cx-set-list-selections "Create/Edit Materials*Table2*Table1(Properties)*DropDownList4(Density)" '( 2))
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table2*Table1(Properties)*DropDownList4(Density)")
+(cx-gui-do cx-activate-tab-index "Expression*Table1*Frame1" 0)
+(cx-gui-do cx-activate-tab-index "Expression*Table1*Frame1" 1)
+(cx-gui-do cx-activate-tab-index "Expression*Table1*Frame1" 0)
+(cx-gui-do cx-set-expression-entry "Parameter Expression*Table1*ExpressionEntry3(Definition)" '("2719 [kg/m^3]" . 1))
+(cx-gui-do cx-set-expression-entry "Parameter Expression*Table1*ExpressionEntry3(Definition)" '("2719 [kg/m^3]" . 1))
+(cx-gui-do cx-set-expression-entry "Parameter Expression*Table1*ExpressionEntry3(Definition)" '("2719 [kg/m^3]" . 1))
+(cx-gui-do cx-set-expression-entry "Parameter Expression*Table1*ExpressionEntry3(Definition)" '("2719 [kg/m^3]" . 1))
+(cx-gui-do cx-set-expression-entry "Parameter Expression*Table1*ExpressionEntry3(Definition)" '("2719 [kg/m^3]" . 1))
+(cx-gui-do cx-set-text-entry "Parameter Expression*Table1*TextEntry2(Name)" "PLA_Density")
+(cx-gui-do cx-activate-item "Parameter Expression*Table1*TextEntry2(Name)")
+(cx-gui-do cx-set-expression-entry "Parameter Expression*Table1*ExpressionEntry3(Definition)" '("2719 [kg/m^3]" . 1))
+(cx-gui-do cx-activate-tab-index "Parameter Expression*Table1*Frame1" 1)
+(cx-gui-do cx-set-expression-entry "Parameter Expression*Table1*ExpressionEntry3(Definition)" '("2719 [kg/m^3]" . 1))
+(cx-gui-do cx-activate-item "Parameter Expression*PanelButtons*PushButton2(Cancel)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-activate-item "NavigationPane*Frame2*Table1*List_Tree2")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Frame2*ButtonBox2*PushButton1(Fluent Database)")
+(cx-gui-do cx-set-list-selections "Fluent Database Materials*Table1*Frame1*Frame3*DropDownList1(Material Type)" '( 1))
+(cx-gui-do cx-activate-item "Fluent Database Materials*Table1*Frame1*Frame3*DropDownList1(Material Type)")
+(cx-gui-do cx-activate-item "Fluent Database Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Frame2*ButtonBox2*PushButton2(GRANTA MDS Database)")
+(cx-gui-do cx-set-list-selections "GRANTA MDS Materials*Table1*Frame1*List4(Materials)" '( 459))
+(cx-gui-do cx-activate-item "GRANTA MDS Materials*Table1*Frame1*List4(Materials)")
+(cx-gui-do cx-activate-item "GRANTA MDS Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-activate-item "Ribbon*Frame1*Frame3(Physics)*Table1*Table3(Materials)*PushButton1(Create/Edit)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-activate-item "NavigationPane*Frame2*Table1*List_Tree2")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-activate-item "Ribbon*Frame1*Frame3(Physics)*Table1*Table3(Materials)*PushButton1(Create/Edit)")
+(cx-gui-do cx-set-list-selections "Create/Edit Materials*Table1*Frame1*Table1*DropDownList3(Material Type)" '( 1))
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Table1*DropDownList3(Material Type)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Frame2*ButtonBox2*PushButton2(GRANTA MDS Database)")
+(cx-gui-do cx-activate-item "GRANTA MDS Materials*PanelButtons*PushButton6(Copy)")
+
+ANSYS GRANTA Materials Data for Simulation:
+A license is required for material plastic-pla
+
+Copy of Material from database to current case has been cancelled!
+(cx-gui-do cx-activate-item "Information*OK")
+(cx-gui-do cx-activate-item "Information*OK")
+(cx-gui-do cx-activate-item "GRANTA MDS Materials*PanelButtons*PushButton6(Copy)")
+
+ANSYS GRANTA Materials Data for Simulation:
+A license is required for material plastic-pla
+
+Copy of Material from database to current case has been cancelled!
+(cx-gui-do cx-activate-item "Information*OK")
+(cx-gui-do cx-activate-item "Information*OK")
+(cx-gui-do cx-activate-item "GRANTA MDS Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Frame2*ButtonBox2*PushButton1(Fluent Database)")
+(cx-gui-do cx-activate-item "Fluent Database Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Frame2*ButtonBox2*PushButton1(Fluent Database)")
+(cx-gui-do cx-set-list-selections "Fluent Database Materials*Table1*Frame1*List1(Materials)" '( 12))
+(cx-gui-do cx-activate-item "Fluent Database Materials*Table1*Frame1*List1(Materials)")
+(cx-gui-do cx-set-list-selections "Fluent Database Materials*Table1*Frame1*List1(Materials)" '( 6 12))
+(cx-gui-do cx-activate-item "Fluent Database Materials*Table1*Frame1*List1(Materials)")
+(cx-gui-do cx-set-list-selections "Fluent Database Materials*Table1*Frame1*List1(Materials)" '( 12))
+(cx-gui-do cx-activate-item "Fluent Database Materials*Table1*Frame1*List1(Materials)")
+(cx-gui-do cx-set-list-selections "Fluent Database Materials*Table1*Frame1*List1(Materials)" '( 6 12))
+(cx-gui-do cx-activate-item "Fluent Database Materials*Table1*Frame1*List1(Materials)")
+(cx-gui-do cx-activate-item "Fluent Database Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Frame2*ButtonBox2*PushButton3(User-Defined Database)")
+(cx-gui-do cx-activate-item "Open Database*PanelButtons*PushButton2(Cancel)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Table1*TextEntry1(Name)")
+(cx-gui-do cx-set-text-entry "Create/Edit Materials*Table1*Frame1*Table1*TextEntry1(Name)" "pla")
+(cx-gui-do cx-set-list-selections "Create/Edit Materials*Table2*Table1(Properties)*DropDownList4(Density)" '( 0))
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table2*Table1(Properties)*DropDownList4(Density)")
+
+Error: No user-defined functions of type udf-type-property have been loaded.
+Error Object: #f
+(cx-gui-do cx-activate-item "Error*OK")
+(cx-gui-do cx-set-list-selections "Create/Edit Materials*Table2*Table1(Properties)*DropDownList4(Density)" '( 1))
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table2*Table1(Properties)*DropDownList4(Density)")
+(cx-gui-do cx-set-real-entry-list "Create/Edit Materials*RealEntry10" '( 2))
+(cx-gui-do cx-set-real-entry-list "Create/Edit Materials*RealEntry10" '( 1240))
+(cx-gui-do cx-set-text-entry "Create/Edit Materials*Table1*Frame1*Table1*TextEntry2(Chemical Formula)" "pla")
+(cx-gui-do cx-set-list-selections "Create/Edit Materials*Table1*Frame1*Table1*DropDownList3(Material Type)" '( 1))
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Table1*DropDownList3(Material Type)")
+(cx-gui-do cx-set-list-selections "Create/Edit Materials*Table1*Frame1*Table1*DropDownList4(Materials)" '( 0))
+(cx-gui-do cx-activate-item "Create/Edit Materials*Table1*Frame1*Table1*DropDownList4(Materials)")
+(cx-gui-do cx-set-real-entry-list "Create/Edit Materials*RealEntry10" '( 1240))
+(cx-gui-do cx-activate-item "Create/Edit Materials*RealEntry10")
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton3(Change/Create)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton3(Change/Create)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton3(Change/Create)")
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton1(Close)")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-activate-item "NavigationPane*Frame2*Table1*List_Tree2")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Materials|Solid|aluminum"))
+(cx-gui-do cx-activate-item "Create/Edit Materials*PanelButtons*PushButton1(Close)")
+(cx-use-window-id 51)
+(cx-gui-do cx-activate-item "General*Table1*ButtonBox1(Mesh)*PushButton3(Check)")
+
+ Domain Extents:
+   x-coordinate: min (m) = -6.349901e-02, max (m) = 6.349903e-02
+   y-coordinate: min (m) = -4.398539e-02, max (m) = 4.398635e-02
+   z-coordinate: min (m) = -1.200993e-04, max (m) = 4.066378e-03
+ Volume statistics:
+   minimum volume (m3): 6.606291e-14
+   maximum volume (m3): 1.001141e-09
+     total volume (m3): 2.315466e-06
+ Face area statistics:
+   minimum face area (m2): 1.140526e-10
+   maximum face area (m2): 4.517930e-06
+ Checking mesh.....................................
+Done.
+ (cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Cell Zone Conditions|Solid|freeparts-part-1 (solid, id=83)"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Cell Zone Conditions|Solid|freeparts-part-1 (solid, id=83)"))
+(cx-gui-do cx-activate-item "NavigationPane*Frame2*Table1*List_Tree2")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Cell Zone Conditions|Solid|freeparts-part-1 (solid, id=83)"))
+(cx-gui-do cx-activate-tab-index "Solid*Frame2*Table3*Frame1" 0)
+(cx-gui-do cx-activate-tab-index "Solid*Frame2*Table3*Frame1" 1)
+(cx-gui-do cx-activate-tab-index "Solid*Frame2*Table3*Frame1" 0)
+(cx-gui-do cx-activate-tab-index "Solid*Frame2*Table3*Frame1" 1)
+(cx-gui-do cx-activate-tab-index "Solid*Frame2*Table3*Frame1" 0)
+(cx-gui-do cx-activate-tab-index "Solid*Frame2*Table3*Frame1" 2)
+(cx-gui-do cx-activate-tab-index "Solid*Frame2*Table3*Frame1" 0)
+(cx-gui-do cx-activate-tab-index "Solid*Frame2*Table3*Frame1" 3)
+(cx-gui-do cx-activate-tab-index "Solid*Frame2*Table3*Frame1" 0)
+(cx-gui-do cx-activate-tab-index "Solid*Frame2*Table3*Frame1" 4)
+(cx-gui-do cx-activate-tab-index "Solid*Frame2*Table3*Frame1" 0)
+(cx-gui-do cx-activate-item "Solid*PanelButtons*PushButton2(Cancel)")
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-set-camera-relative '(-4.08579 -2.57116 3.38046) '(0 0 0) '(1.46675 -0.467361 0.411002) 0 0)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(handle-key "??")
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(handle-key "??")
+(cx-gui-do cx-activate-item "Ribbon*Frame1*Frame4(Solution)*Table1*Table3(Initialization)*PushButton5(Initialize)")
+
+Initialize using the hybrid initialization method.
+
+Checking case topology... 
+-This case has no inlets & no outlets 
+-Case will be initialized with constant parameters
+
+Hybrid initialization is done.
+(cx-use-window-id 51)
+(cx-use-window-id 51)
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Models|Species (Off)"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Models|Species (Off)"))
+(cx-gui-do cx-activate-item "NavigationPane*Frame2*Table1*List_Tree2")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Models|Species (Off)"))
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame3" 0)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame3" 1)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame3" 0)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame3" 2)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame3" 0)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame4(PDF Table Creation)" 0)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame4(PDF Table Creation)" 1)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame4(PDF Table Creation)" 0)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame4(PDF Table Creation)" 2)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame4(PDF Table Creation)" 0)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame4(PDF Table Creation)" 3)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame4(PDF Table Creation)" 0)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame4(PDF Table Creation)" 4)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame4(PDF Table Creation)" 0)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame4(PDF Table Creation)" 5)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame4(PDF Table Creation)" 0)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame4(PDF Table Creation)" 6)
+(cx-gui-do cx-activate-tab-index "Species Model*Table2*Frame4(PDF Table Creation)" 0)
+(cx-gui-do cx-activate-item "Species Model*PanelButtons*PushButton2(Cancel)")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Models|Viscous (SST k-omega)"))
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Models|Viscous (SST k-omega)"))
+(cx-gui-do cx-activate-item "NavigationPane*Frame2*Table1*List_Tree2")
+(cx-gui-do cx-set-list-tree-selections "NavigationPane*Frame2*Table1*List_Tree2" (list "Setup|Models|Viscous (SST k-omega)"))
+(cx-gui-do cx-activate-item "Viscous Model*PanelButtons*PushButton2(Cancel)")
+(cx-use-window-id 51)
+(cx-gui-do cx-activate-item "Ribbon*Frame1*Frame2(Domain)*Table1*Table3(Surface)*PushButton1(Create)")
+(cx-gui-do cx-activate-item "MenuBar*PopupMenuCreate*Zone...")
+(cx-gui-do cx-activate-item "Zone Surface*PanelButtons*PushButton2(Cancel)")
+(cx-gui-do cx-activate-item "Ribbon*Frame1*Frame2(Domain)*Table1*Table3(Surface)*PushButton1(Create)")
+(cx-gui-do cx-activate-item "MenuBar*PopupMenuCreate*Plane...")
+(cx-gui-do cx-activate-item "Plane Surface*PanelButtons*PushButton2(Cancel)")
+/exit y
+
+Posting ANSYS Product Improvement Program performance data 
+Done.
+(cx-gui-do cx-activate-item "Question*OK")
+Auto-Transcript Stop Time:  21:46:38, 26 May 2023 Eastern Daylight Time 
+Total Transcript Time: 15 Minute 55 Second.

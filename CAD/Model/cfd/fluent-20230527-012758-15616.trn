@@ -1,0 +1,41 @@
+Auto-Transcript Start Time:  01:27:58, 27 May 2023 Eastern Daylight Time 
+Current Directory: "D:\drone\CAD\Model\cfd"
+
+              Welcome to ANSYS Fluent 2023 R1
+
+              Copyright 1987-2023 ANSYS, Inc. All Rights Reserved.
+              Unauthorized use, distribution or duplication is prohibited.
+              This product is subject to U.S. laws governing export and re-export.
+              For full Legal Notice, see documentation.
+
+Build Time: Nov 28 2022 09:53:10 EST  Build Id: 10208  
+ 
+Connected License Server List:	
+
+     --------------------------------------------------------------
+     This is a student version of ANSYS FLUENT. Usage of this product
+     license is limited to the terms and conditions specified in your ANSYS
+     license form, additional terms section.
+     --------------------------------------------------------------
+Host spawning Node 0 on machine "DesmondWindowsBlade14" (win64).
+
+------------------------------------------------------------------------------------------------
+ID    Hostname              Core  O.S.         PID    Vendor                                   
+------------------------------------------------------------------------------------------------
+n6    DesmondWindowsBlade1  7/16  Windows-x64  3964   AMD Ryzen 9 5900HX with Radeon Graphics  
+n5    DesmondWindowsBlade1  6/16  Windows-x64  9900   AMD Ryzen 9 5900HX with Radeon Graphics  
+n4    DesmondWindowsBlade1  5/16  Windows-x64  8172   AMD Ryzen 9 5900HX with Radeon Graphics  
+n3    DesmondWindowsBlade1  4/16  Windows-x64  11780  AMD Ryzen 9 5900HX with Radeon Graphics  
+n2    DesmondWindowsBlade1  3/16  Windows-x64  15636  AMD Ryzen 9 5900HX with Radeon Graphics  
+n1    DesmondWindowsBlade1  2/16  Windows-x64  3468   AMD Ryzen 9 5900HX with Radeon Graphics  
+n0*   DesmondWindowsBlade1  1/16  Windows-x64  17296  AMD Ryzen 9 5900HX with Radeon Graphics  
+host  DesmondWindowsBlade1        Windows-x64  1648   AMD Ryzen 9 5900HX with Radeon Graphics  
+
+MPI Option Selected: intel
+Selected system interconnect: default
+------------------------------------------------------------------------------------------------
+
+Cleanup script file is D:\\drone\\CAD\\Model\\cfd\\cleanup-fluent-DesmondWindowsBlade14-1648.bat
+(cx-gui-do cx-activate-tab-index "NavigationPane*Frame1(TreeTab)" 0)
+
+Posting ANSYS Product Improvement Program startup data

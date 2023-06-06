@@ -1,0 +1,34 @@
+Auto-Transcript Start Time:  00:48:54, 27 May 2023 Eastern Daylight Time 
+Current Directory: "D:\drone\CAD\Model\cfd\prop test.cffdb\toroidal"
+
+              Welcome to ANSYS Fluent 2023 R1
+
+              Copyright 1987-2023 ANSYS, Inc. All Rights Reserved.
+              Unauthorized use, distribution or duplication is prohibited.
+              This product is subject to U.S. laws governing export and re-export.
+              For full Legal Notice, see documentation.
+
+Build Time: Nov 28 2022 09:52:02 EST  Build Id: 10208  
+Information: The server has started and is running.
+Information: A new client connected with server.
+
+********************************************************************
+************************ Clients Connected *************************
+********************************************************************
+1. Connected from 192.168.7.33.
+********************************************************************
+********************************************************************
+ 
+Connected License Server List:	
+
+     --------------------------------------------------------------
+     This is a student version of ANSYS FLUENT. Usage of this product
+     license is limited to the terms and conditions specified in your ANSYS
+     license form, additional terms section.
+     --------------------------------------------------------------
+Host spawning Node 0 on machine "DesmondWindowsBlade14" (win64).
+
+Unable to spawn node: license not available.
+ANSYS LICENSE MANAGER ERROR:Not enough HPC Parallel licenses 7/4.
+
+
