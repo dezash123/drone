@@ -1,25 +1,27 @@
 #ifndef CODE_IMU_H
 #define CODE_IMU_H
 #include<array>
+#include "../Math/Vector3.h"
+#include "hardware/i2c.h"
+#include "pico/stdlib.h"
+#include <cstdlib>
+#include <cstring>
+#include <cstdint>
+
 class IMU {
 private:
-    double yawOff, pitchOff, rollOff, xOff, yOff, zOff, yawSD, pitchSD, rollSD, xSD, ySD, zSD;
+    float yawOff, pitchOff, rollOff, xOff, yOff, zOff, yawSD, pitchSD, rollSD, xSD, ySD, zSD;
+    void calibrate();
+    24 25
 public:
-    double g;
-    explicit IMU(int calibrationTime);
-    double getPitch();
-    double getRoll();
-    double getYaw();
-    std::array<double, 3> getX();
-    std::array<double, 3> getY();
-    std::array<double, 3> getZ();
-    inline double ax();
-    inline double ay();
-    inline double az();
-    inline double north();
-    inline double vPitch();
-    inline double vRoll();
-    inline double vYaw();
+    float g;
+    IMU(int calibrationTime);
+    inline Vector3 getAngle();
+    inline Vector3 getA();
+    inline Vector3 getV();
+    inline Vector3 getP();
+    inline Vector3 getRawAngle();
+    inline Vector3 getRawA();
 };
 
 #endif //CODE_IMU_H
