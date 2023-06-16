@@ -1,3 +1,0 @@
-cargo:rustc-link-search=/home/dmehta24/Shared/drone/Code/Rust/Drone/target/release/build/rp2040-pac-ba1c7e132ad04bd1/out
-cargo:rerun-if-changed=device.x
-cargo:rerun-if-changed=build.rs

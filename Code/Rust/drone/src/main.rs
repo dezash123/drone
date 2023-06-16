@@ -1,5 +1,10 @@
 #![no_std]
 #![no_main]
+mod control;
+mod io;
+mod math;
+mod sensors;
+use crate::math::vector3;
 use embedded_hal::digital::v2::OutputPin;
 use panic_halt as _;
 use rp_pico::entry;
@@ -49,10 +54,5 @@ fn main() -> ! {
     let mut led_pin = pins.led.into_push_pull_output();
 
     // Blink the LED at 1 Hz
-    loop {
-        led_pin.set_high().unwrap();
-        delay.delay_ms(500);
-        led_pin.set_low().unwrap();
-        delay.delay_ms(500);
-    }
+    loop {}
 }

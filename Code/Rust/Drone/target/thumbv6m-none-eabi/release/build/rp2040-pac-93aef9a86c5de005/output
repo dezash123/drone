@@ -1,3 +1,0 @@
-cargo:rustc-link-search=/home/dmehta24/Shared/drone/Code/Rust/Drone/target/thumbv6m-none-eabi/release/build/rp2040-pac-93aef9a86c5de005/out
-cargo:rerun-if-changed=device.x
-cargo:rerun-if-changed=build.rs

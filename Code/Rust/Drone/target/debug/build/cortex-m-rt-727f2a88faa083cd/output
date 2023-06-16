@@ -1,3 +1,0 @@
-cargo:rustc-link-search=/home/dmehta24/Shared/drone/Code/Rust/Drone/target/debug/build/cortex-m-rt-727f2a88faa083cd/out
-cargo:rerun-if-changed=build.rs
-cargo:rerun-if-changed=link.x.in
