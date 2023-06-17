@@ -63,8 +63,8 @@
       39,
       40
     ],
-    "visible_layers": "ffcffcf_ffffffff",
-    "zone_display_mode": 1
+    "visible_layers": "ffc7f30_ffffffff",
+    "zone_display_mode": 0
   },
   "meta": {
     "filename": "Drone_PCB.kicad_prl",
