@@ -6,11 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rp-pico = "0.7.0"
 panic-halt= "0.2.0"
 embedded-hal = "0.2.5"
 cortex-m = "0.7.2"
 cortex-m-rt = "0.7"
 rp2040-boot2 = "0.3.0"
-rp2040-hal = "0.8.0"
+rp2040-hal = "0.8.2"
 fugit = "0.3.6"
+nb = "1.0"
+paste = "1.0"

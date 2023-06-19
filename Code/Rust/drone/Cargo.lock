@@ -84,9 +84,10 @@ dependencies = [
  "cortex-m-rt",
  "embedded-hal",
  "fugit",
+ "nb 1.1.0",
  "panic-halt",
- "rp-pico",
- "rp2040-boot2 0.3.0",
+ "paste",
+ "rp2040-boot2",
  "rp2040-hal",
 ]
 
@@ -222,29 +223,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 
 [[package]]
-name = "rp-pico"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aab28f6f4e19cec2d61b64cdd685e69794b81c579fd3b765579c46018fe616d0"
-dependencies = [
- "cortex-m",
- "cortex-m-rt",
- "fugit",
- "rp2040-boot2 0.2.1",
- "rp2040-hal",
- "usb-device",
-]
-
-[[package]]
-name = "rp2040-boot2"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c773ec49b836077aa144b58dc7654a243e1eecdb6cf0d25361ae7c7600fabd8"
-dependencies = [
- "crc-any",
-]
-
-[[package]]
 name = "rp2040-boot2"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -295,7 +273,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9192cafbb40d717c9e0ddf767aaf9c69fee1b4e48d22ed853b57b11f6d9f3d7e"
 dependencies = [
  "cortex-m",
- "cortex-m-rt",
  "vcell",
 ]
 
