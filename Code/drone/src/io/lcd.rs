@@ -1,9 +1,11 @@
-#![no_std]
-use core::ops::Deref;
-use cortex_m::prelude::_embedded_hal_timer_CountDown;
+#[allow(unused)]
 use embedded_hal::prelude::_embedded_hal_blocking_i2c_Write;
-use fugit::ExtU32;
-use hal::{gpio::Function, pac::i2c0::RegisterBlock as I2CBlock};
+use fugit::RateExtU32;
+use hal::gpio::bank0::{Gpio0, Gpio1};
+use hal::gpio::Function;
+use hal::gpio::Pin;
+use hal::pac::I2C0;
+use hal::{i2c::I2C, pac};
 use rp2040_hal as hal;
 
 const LCD_ADDRESS: u8 = 0x27;
@@ -40,22 +42,27 @@ const LCD_NOBACKLIGHT: u8 = 0x00;
 const EN: u8 = 0b00000100;
 const RW: u8 = 0b00000010;
 const RS: u8 = 0b00000001;
-pub struct Lcd<T, Sda, Scl>
-where
-    T: Deref<Target = I2CBlock>,
-    Sda: hal::i2c::SdaPin<T>,
-    Scl: hal::i2c::SclPin<T>,
-{
-    i2c: hal::I2C<T, (Sda, Scl)>,
+pub struct Lcd {
+    i2c: I2C<
+        I2C0,
+        (
+            Pin<Gpio0, Function<hal::gpio::I2C>>,
+            Pin<Gpio1, Function<hal::gpio::I2C>>,
+        ),
+    >,
 }
 
-impl<T, Sda, Scl> Lcd<T, Sda, Scl>
-where
-    T: Deref<Target = I2CBlock>,
-    Sda: hal::i2c::SdaPin<T>,
-    Scl: hal::i2c::SclPin<T>,
-{
-    pub fn init(&mut self, timer: &mut hal::timer::CountDown) {
+impl Lcd {
+    pub fn new(
+        i2c0: pac::I2C0,
+        sda_pin: Pin<Gpio0, Function<hal::gpio::I2C>>,
+        scl_pin: Pin<Gpio1, Function<hal::gpio::I2C>>,
+        resets: &mut pac::RESETS,
+    ) -> Self {
+        let mut i2c = I2C::i2c0(i2c0, sda_pin, scl_pin, 400.kHz(), resets, 125_000_000.Hz());
+        Self { i2c }
+    }
+    pub fn init(&mut self, timer: &mut cortex_m::delay::Delay) {
         self.lcd_write(0x03, 0x00, timer);
         self.lcd_write(0x03, 0x00, timer);
         self.lcd_write(0x03, 0x00, timer);
@@ -68,31 +75,32 @@ where
         self.lcd_write(LCD_DISPLAYCONTROL | LCD_DISPLAYON, 0x00, timer);
         self.lcd_write(LCD_CLEARDISPLAY, 0x00, timer);
         self.lcd_write(LCD_ENTRYMODESET | LCD_ENTRYLEFT, 0x00, timer);
-        timer.start(200.millis());
-        nb::block!(timer.wait());
+        timer.delay_ms(200);
     }
     fn write_cmd(&mut self, data: u8) {
         self.i2c.write(LCD_ADDRESS, &[data]).unwrap();
     }
-    fn lcd_strobe(&mut self, data: u8, timer: &mut hal::timer::CountDown) {
+    fn lcd_strobe(&mut self, data: u8, timer: &mut cortex_m::delay::Delay) {
         self.write_cmd(data | EN | LCD_BACKLIGHT);
-        timer.start(500.micros());
-        nb::block!(timer.wait());
+        timer.delay_us(1500);
         self.write_cmd((data & !EN) | LCD_BACKLIGHT);
-        timer.start(100.micros());
-        nb::block!(timer.wait());
+        timer.delay_us(300);
     }
-    fn lcd_write_four_bits(&mut self, data: u8, timer: &mut hal::timer::CountDown) {
+    fn lcd_write_four_bits(&mut self, data: u8, timer: &mut cortex_m::delay::Delay) {
         self.write_cmd(data | LCD_BACKLIGHT);
         self.lcd_strobe(data, timer);
     }
-    fn lcd_write(&mut self, cmd: u8, mode: u8, timer: &mut hal::timer::CountDown) {
+    fn lcd_write(&mut self, cmd: u8, mode: u8, timer: &mut cortex_m::delay::Delay) {
         self.lcd_write_four_bits(mode | (cmd & 0xF0), timer);
         self.lcd_write_four_bits(mode | ((cmd << 4) & 0xF0), timer);
     }
-    pub fn lcd_display_string(&mut self, string: &str, timer: &mut hal::timer::CountDown) {
+    pub fn lcd_display_string(&mut self, string: &str, timer: &mut cortex_m::delay::Delay) {
         for char in string.as_bytes().iter() {
             self.lcd_write(*char, RS, timer)
         }
+    }
+    pub fn clear(&mut self, timer: &mut cortex_m::delay::Delay) {
+        self.lcd_write(LCD_CLEARDISPLAY, 0x00, timer);
+        self.lcd_write(LCD_RETURNHOME, 0x00, timer);
     }
 }

@@ -1,14 +1,15 @@
-#[derive(Debug)]
-pub struct Motor {
-    power: f32,
-    port: u8,
+use rp2040_hal::{prelude::*, pwm::{InputHighRunning, Slices}};
+pub trait Motor {
+    fn set_power(&mut self, power:u16);
 }
 
-impl Motor {
-    pub fn new(port: u8) -> Self {
-        Self { power: 0.0, port }
-    }
-    pub fn set_power(&mut self, power: f32) {
-        self.power = power;
+pub struct BrushedMotor {
+    pwm: 
+}
+
+impl Motor for BrushedMotor {
+    #[inline]
+    fn set_power(&mut self, power: u16) {
+        
     }
 }
