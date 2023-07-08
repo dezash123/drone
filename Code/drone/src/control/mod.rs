@@ -1,4 +1,2 @@
-pub mod flightSystem;
-pub use self::flightSystem::FlightSystem;
-pub mod motor;
-pub use self::motor::Motor;
+pub mod flight_system;
+pub use self::flight_system::FlightSystem;

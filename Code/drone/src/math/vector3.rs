@@ -1,13 +1,21 @@
 use core::ops::Add;
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Vector3<T> {
-    x: T,
-    y: T,
-    z: T,
+    pub x: T,
+    pub y: T,
+    pub z: T,
 }
-impl<T> Vector3<T> {
+impl<T: Clone> Vector3<T> {
     pub fn new(x: T, y: T, z: T) -> Self {
         Self { x, y, z }
+    }
+    #[inline(always)]
+    pub fn from(array: &[T; 3]) -> Self {
+        Self {
+            x: array[0].clone(),
+            y: array[1].clone(),
+            z: array[2].clone(),
+        }
     }
 }
 impl<T: Add<Output = T>> Add for Vector3<T> {
