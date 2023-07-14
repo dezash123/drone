@@ -20,6 +20,7 @@ use io::lcd::Lcd;
 use sensors::imu::IMUError;
 use sensors::imu::IMUError::{ReadError, SetupError, WriteError};
 use sensors::imu::IMUHardwareType;
+use sensors::imu::MPU_6050;
 // use io::router::Server;
 use defmt::*;
 use defmt_rtt as _;
@@ -27,6 +28,8 @@ use panic_probe as _;
 use rp2040_hal as hal;
 use sensors::distance::DistanceSensor;
 use sensors::imu::ICM_20948;
+
+use crate::sensors::imu::Accelerometer;
 
 #[link_section = ".boot2"]
 #[used]
@@ -149,20 +152,29 @@ fn main() -> ! {
     // }
     // let mut imuinited = false;
 
-    // match imu.init(&mut delay) {
-    //     Ok(()) => (),
-    //     Err(e) => e.info(),
-    // };
-    let prevt = timer.get_counter().ticks();
+    let mut imu = MPU_6050::new(
+        pac.I2C0,
+        pins.gpio4.into_mode(),
+        pins.gpio5.into_mode(),
+        &mut pac.RESETS,
+    );
+    match imu.init(&mut delay, &timer) {
+        Ok(()) => (),
+        Err(e) => e.info(),
+    };
+    let mut tlast: u64 = 0;
     loop {
-        let t = timer.get_counter().ticks();
-        info!("{}", t);
-        delay.delay_ms(1000);
+        match imu.update_raw_acc(&mut delay, &timer) {
+            Ok(()) => (),
+            Err(e) => e.info(),
+        }
+        let v4 = imu.get_acc();
+        let or = FlightSystem::get_orientation(v4.0);
+        info!("x:{}", or[0]);
+        info!("y:{}", or[1]);
+        info!("dt:{}", v4.1 - tlast);
+        tlast = v4.1;
 
-        // match imu.update_raw_acc(&mut delay) {
-        //     Ok(()) => (),
-        //     Err(e) => e.info(),
-        // }
         // let ax = i16::from_be_bytes([imu.raw_acc[0], imu.raw_acc[1]]);
         // let ay = i16::from_be_bytes([imu.raw_acc[2], imu.raw_acc[3]]);
         // let az = i16::from_be_bytes([imu.raw_acc[4], imu.raw_acc[5]]);

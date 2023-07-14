@@ -1,9 +1,10 @@
+use cortex_m::peripheral::MPU;
 use defmt::*;
 use defmt_rtt as _;
 use embedded_hal::prelude::_embedded_hal_blocking_i2c_Write;
 use embedded_hal::prelude::_embedded_hal_blocking_i2c_WriteRead;
 use fugit::RateExtU32;
-use hal::gpio::bank0::{Gpio24, Gpio25};
+use hal::gpio::bank0::{Gpio24, Gpio25, Gpio4, Gpio5};
 use hal::gpio::Function;
 use hal::gpio::Pin;
 use hal::i2c::Error as I2CError;
@@ -13,7 +14,7 @@ use panic_probe as _;
 use rp2040_hal as hal;
 
 pub trait Accelerometer {
-    fn get_acc(self) -> ([f32; 3], u64);
+    fn get_acc(&self) -> ([f32; 3], u64);
     fn update_raw_acc(
         &mut self,
         delay: &mut cortex_m::delay::Delay,
@@ -22,7 +23,7 @@ pub trait Accelerometer {
 }
 
 pub trait Gyroscope {
-    fn get_gyr(self) -> ([f32; 3], u64);
+    fn get_gyr(&self) -> ([f32; 3], u64);
     fn update_raw_gyr(
         &mut self,
         delay: &mut cortex_m::delay::Delay,
@@ -31,12 +32,12 @@ pub trait Gyroscope {
 }
 
 pub trait TemperatureSensor {
-    fn get_temp_c(self) -> f32;
+    fn get_temp_c(&self) -> f32;
     fn update_raw_temp(&mut self, delay: &mut cortex_m::delay::Delay) -> Result<(), IMUError>;
 }
 
 pub trait Magnetometer {
-    fn get_mag(self) -> [f32; 3];
+    fn get_mag(&self) -> [f32; 3];
     fn update_raw_mag(&mut self, delay: &mut cortex_m::delay::Delay) -> Result<(), IMUError>;
 }
 
@@ -515,7 +516,7 @@ impl Accelerometer for ICM_20948 {
         delay.delay_us(100);
         result
     }
-    fn get_acc(self) -> ([f32; 3], u64) {
+    fn get_acc(&self) -> ([f32; 3], u64) {
         // meters per sec
         (
             [
@@ -546,7 +547,7 @@ impl Gyroscope for ICM_20948 {
         delay.delay_us(100);
         result
     }
-    fn get_gyr(self) -> ([f32; 3], u64) {
+    fn get_gyr(&self) -> ([f32; 3], u64) {
         // degrees per sec
         (
             [
@@ -566,6 +567,165 @@ impl Sensor for ICM_20948 {
     ) -> Result<(), IMUError> {
         self.update_raw_acc(delay, timer)?;
         self.update_raw_gyr(delay, timer)?;
+        Ok(())
+    }
+}
+
+const MPU_ADDR: u8 = 0x68;
+const MPU_ID: u8 = 0x68;
+const MPU_WHOAMI: u8 = 0x75;
+const MPU_GYR_START: u8 = 0x43;
+const MPU_ACC_START: u8 = 0x3B;
+const MPU_ACC_DIV: f32 = 4.0 * 9.81;
+const MPU_GYR_DIV: f32 = 250.0;
+
+pub struct MPU_6050 {
+    raw_acc: [u8; 6],
+    last_acc: u64,
+    raw_gyr: [u8; 6],
+    last_gyr: u64,
+    raw_temp: [u8; 2],
+    i2c: I2C<
+        I2C0,
+        (
+            Pin<Gpio4, Function<hal::gpio::I2C>>,
+            Pin<Gpio5, Function<hal::gpio::I2C>>,
+        ),
+    >,
+}
+
+impl MPU_6050 {
+    // i was too lazy to make nice errors for this one
+    pub fn new(
+        i2c0: pac::I2C0,
+        sda_pin: Pin<Gpio4, Function<hal::gpio::I2C>>,
+        scl_pin: Pin<Gpio5, Function<hal::gpio::I2C>>,
+        resets: &mut pac::RESETS,
+    ) -> Self {
+        let mut i2c = I2C::i2c0(i2c0, sda_pin, scl_pin, 400.kHz(), resets, 125_000_000.Hz());
+        let mut firstbank: [u8; 1] = [69; 1];
+        Self {
+            raw_acc: [0; 6],
+            last_acc: 0,
+            raw_gyr: [0; 6],
+            last_gyr: 0,
+            raw_temp: [0; 2],
+            i2c,
+        }
+    }
+    pub fn init(
+        &mut self,
+        delay: &mut cortex_m::delay::Delay,
+        timer: &hal::Timer,
+    ) -> Result<(), IMUError> {
+        self.write(0x6B, 0b10000000, delay);
+        delay.delay_ms(200);
+        self.write(0x6B, 0, delay);
+        if self.read_out::<1>(MPU_WHOAMI)?[0] != MPU_ID {
+            return Err(IMUError::SetupError("IMU not found!!!"));
+        }
+        self.write(0x37, 0b0110000, delay)?;
+        self.write(0x1B, 0, delay)?; // +- 250 dps
+        self.write(0x1C, 0b00001000, delay)?; // +- 4g
+
+        Ok(())
+    }
+
+    fn read_out<const len: usize>(&mut self, reg: u8) -> Result<[u8; len], IMUError> {
+        let mut buf: [u8; len] = [0; len];
+        match self.i2c.write_read(MPU_ADDR, &[reg], &mut buf) {
+            Ok(()) => Ok(buf),
+            Err(e) => Err(IMUError::ReadError(IMUHardwareType::Unknown, reg, e)),
+        }
+    }
+
+    #[inline(always)]
+    fn read_buf<const len: usize>(&mut self, reg: u8, buf: &mut [u8; len]) -> Result<(), IMUError> {
+        match self.i2c.write_read(MPU_ADDR, &[reg], buf) {
+            Ok(()) => Ok(()),
+            Err(e) => Err(IMUError::ReadError(IMUHardwareType::Unknown, reg, e)),
+        }
+    }
+
+    #[inline(always)]
+    fn write(
+        &mut self,
+        reg: u8,
+        data: u8,
+        delay: &mut cortex_m::delay::Delay,
+    ) -> Result<(), IMUError> {
+        let results = match self.i2c.write(MPU_ADDR, &[reg, data]) {
+            Ok(()) => Ok(()),
+            Err(e) => Err(IMUError::WriteError(IMUHardwareType::Unknown, data, reg, e)),
+        };
+        delay.delay_us(100);
+        results
+    }
+}
+
+impl Accelerometer for MPU_6050 {
+    fn get_acc(&self) -> ([f32; 3], u64) {
+        // meters per sec
+        (
+            [
+                f32::from(i16::from_be_bytes([self.raw_acc[0], self.raw_acc[1]])) / MPU_ACC_DIV,
+                f32::from(i16::from_be_bytes([self.raw_acc[2], self.raw_acc[3]])) / MPU_ACC_DIV,
+                f32::from(i16::from_be_bytes([self.raw_acc[4], self.raw_acc[5]])) / MPU_ACC_DIV,
+            ],
+            self.last_acc,
+        )
+    }
+    fn update_raw_acc(
+        &mut self,
+        delay: &mut cortex_m::delay::Delay,
+        timer: &hal::Timer,
+    ) -> Result<(), IMUError> {
+        match self
+            .i2c
+            .write_read(MPU_ADDR, &[MPU_ACC_START], &mut self.raw_acc)
+        {
+            Ok(()) => (),
+            Err(e) => {
+                return Err(IMUError::ReadError(
+                    IMUHardwareType::Accelerometer,
+                    ACC_START,
+                    e,
+                ))
+            }
+        };
+        self.last_acc = timer.get_counter().ticks();
+        //delay.delay_us(100);
+        Ok(())
+    }
+}
+
+impl Gyroscope for MPU_6050 {
+    fn get_gyr(&self) -> ([f32; 3], u64) {
+        // degrees per sec
+        (
+            [
+                f32::from(i16::from_be_bytes([self.raw_gyr[0], self.raw_gyr[1]])) / MPU_GYR_DIV,
+                f32::from(i16::from_be_bytes([self.raw_gyr[2], self.raw_gyr[3]])) / MPU_GYR_DIV,
+                f32::from(i16::from_be_bytes([self.raw_gyr[4], self.raw_gyr[5]])) / MPU_GYR_DIV,
+            ],
+            self.last_gyr,
+        )
+    }
+    fn update_raw_gyr(
+        &mut self,
+        delay: &mut cortex_m::delay::Delay,
+        timer: &hal::Timer,
+    ) -> Result<(), IMUError> {
+        match self
+            .i2c
+            .write_read(MPU_ADDR, &[MPU_GYR_START], &mut self.raw_gyr)
+        {
+            Ok(()) => (),
+            Err(e) => return Err(IMUError::ReadError(IMUHardwareType::Gyro, GYR_START, e)),
+        };
+
+        self.last_gyr = timer.get_counter().ticks();
+        delay.delay_us(100);
         Ok(())
     }
 }
