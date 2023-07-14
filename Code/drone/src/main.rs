@@ -17,11 +17,16 @@ use hal::pwm::{InputHighRunning, Slices};
 use hal::{pac, I2C};
 use heapless::String;
 use io::lcd::Lcd;
+use sensors::imu::IMUError;
+use sensors::imu::IMUError::{ReadError, SetupError, WriteError};
+use sensors::imu::IMUHardwareType;
 // use io::router::Server;
-use panic_halt as _;
+use defmt::*;
+use defmt_rtt as _;
+use panic_probe as _;
 use rp2040_hal as hal;
 use sensors::distance::DistanceSensor;
-use sensors::imu::IMU;
+use sensors::imu::ICM_20948;
 
 #[link_section = ".boot2"]
 #[used]
@@ -54,42 +59,42 @@ fn main() -> ! {
     )
     .ok()
     .unwrap();
-
+    let mut timer = hal::timer::Timer::new(pac.TIMER, &mut pac.RESETS);
     let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
-    let mut lcd = Lcd::new(
-        pac.I2C1,
-        pins.gpio6.into_mode(),
-        pins.gpio7.into_mode(),
-        &mut pac.RESETS,
-    );
-    lcd.init(&mut delay);
-    lcd.lcd_display_string("hello world", &mut delay);
+    // let mut lcd = Lcd::new(
+    //     pac.I2C1,
+    //     pins.gpio6.into_mode(),
+    //     pins.gpio7.into_mode(),
+    //     &mut pac.RESETS,
+    // );
+    // lcd.init(&mut delay);
+    // lcd.lcd_display_string("hello world", &mut delay, 1);
     // loop {
-    delay.delay_ms(1000);
+    // delay.delay_ms(1000);
     //     lcd.clear(&mut delay);
     //     lcd.lcd_display_string("hello", &mut delay);
     //     delay.delay_ms(1000);
     //     lcd.clear(&mut delay);
     //     lcd.lcd_display_string("world", &mut delay);
     // }
-    // let mut imu = IMU::new(
+    // let mut imu = ICM_20948::new(
     //     pac.I2C0,
     //     pins.gpio24.into_mode(),
     //     pins.gpio25.into_mode(),
     //     &mut pac.RESETS,
     // );
-    let mut i2c = I2C::i2c0(
-        pac.I2C0,
-        pins.gpio0.into_mode(),
-        pins.gpio1.into_mode(),
-        400.kHz(),
-        &mut pac.RESETS,
-        125_000_000.Hz(),
-    );
-    let IMU_ADDRESS = 0x68;
-    i2c.write(IMU_ADDRESS, &[0x1C, 0b11100000]);
-    i2c.write(IMU_ADDRESS, &[0x23, 0b00001000]);
-    i2c.write(IMU_ADDRESS, &[0x6B, 0x01]);
+    // let mut i2c = I2C::i2c0(
+    //     pac.I2C0,
+    //     pins.gpio0.into_mode(),
+    //     pins.gpio1.into_mode(),
+    //     400.kHz(),
+    //     &mut pac.RESETS,
+    //     125_000_000.Hz(),
+    // );
+    // let IMU_ADDRESS = 0x68;
+    // i2c.write(IMU_ADDRESS, &[0x1C, 0b11100000]);
+    // i2c.write(IMU_ADDRESS, &[0x23, 0b00001000]);
+    // i2c.write(IMU_ADDRESS, &[0x6B, 0x01]);
     // let mut server = Server::new(
     //     pac.UART0,
     //     pins.gpio16.into_mode::<FunctionUart>(),
@@ -142,18 +147,26 @@ fn main() -> ! {
     //         let _ = write!(data, "Dev @ {i:#?}");
     //     }
     // }
-    // imu.init(&mut delay);
+    // let mut imuinited = false;
+
+    // match imu.init(&mut delay) {
+    //     Ok(()) => (),
+    //     Err(e) => e.info(),
+    // };
+    let prevt = timer.get_counter().ticks();
     loop {
-        let mut buf: [u8; 4] = [0; 4];
-        //let mut buf_l: [u8; 1] = [0; 1];
-        i2c.write_read(0x68, &[0x3B], &mut buf);
-        //self.i2c.write_read(IMU_ADDRESS, &[0x3C], &mut buf_l);
-        let be: [u8; 2] = [buf[2], buf[3]];
-        let results = i16::from_be_bytes(be);
-        lcd.clear(&mut delay);
-        let mut data = String::<32>::new();
-        let _ = write!(data, "I am {results}");
-        lcd.lcd_display_string(&data, &mut delay);
-        delay.delay_ms(500);
+        let t = timer.get_counter().ticks();
+        info!("{}", t);
+        delay.delay_ms(1000);
+
+        // match imu.update_raw_acc(&mut delay) {
+        //     Ok(()) => (),
+        //     Err(e) => e.info(),
+        // }
+        // let ax = i16::from_be_bytes([imu.raw_acc[0], imu.raw_acc[1]]);
+        // let ay = i16::from_be_bytes([imu.raw_acc[2], imu.raw_acc[3]]);
+        // let az = i16::from_be_bytes([imu.raw_acc[4], imu.raw_acc[5]]);
+        // info!("ax: {}\nay: {}\n az: {}", ax, ay, az);
+        // delay.delay_ms(10000);
     }
 }

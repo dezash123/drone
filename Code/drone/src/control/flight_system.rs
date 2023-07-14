@@ -1,5 +1,4 @@
-use crate::math::Vector3;
-use crate::sensors::{distance::DistanceSensor, imu::IMU};
+use crate::sensors::{distance::DistanceSensor, imu::ICM_20948};
 use core::u16;
 use embedded_hal::PwmPin;
 use rp2040_hal::pwm::{Channel, FreeRunning, InputHighRunning, Pwm0, Pwm1, Pwm2, Pwm3, Slices, A};
@@ -9,15 +8,17 @@ const FL_PORT: u8 = 2;
 const BR_PORT: u8 = 3;
 const BL_PORT: u8 = 4;
 
+const LIFTOFF_SPEED: f32 = 5.0;
+
 pub struct FlightSystem {
     front_left: Channel<Pwm0, FreeRunning, A>,
     back_left: Channel<Pwm1, FreeRunning, A>,
     front_right: Channel<Pwm2, FreeRunning, A>,
     back_right: Channel<Pwm3, FreeRunning, A>,
-    imu: IMU,
+    imu: ICM_20948,
     distance: DistanceSensor,
-    target_linear_velocity: Vector3<f32>,
-    target_angular_velocity: Vector3<f32>,
+    target_linear_velocity: [f32; 3],
+    target_angular_velocity: [f32; 3],
 }
 impl FlightSystem {
     pub fn new(
@@ -25,7 +26,7 @@ impl FlightSystem {
         p1: Channel<Pwm1, FreeRunning, A>,
         p2: Channel<Pwm2, FreeRunning, A>,
         p3: Channel<Pwm3, FreeRunning, A>,
-        imu: IMU,
+        imu: ICM_20948,
         distance: DistanceSensor,
     ) -> Self {
         Self {
@@ -35,8 +36,8 @@ impl FlightSystem {
             back_right: p3,
             imu,
             distance,
-            target_linear_velocity: Vector3::new(0.0, 0.0, 0.0),
-            target_angular_velocity: Vector3::new(0.0, 0.0, 0.0),
+            target_linear_velocity: [0.0, 0.0, 5.0],
+            target_angular_velocity: [0.0, 0.0, 0.0],
         }
     }
     fn calc_speeds(&self) -> [u16; 4] {
@@ -49,11 +50,15 @@ impl FlightSystem {
         self.back_right.set_duty(speeds[2]);
         self.back_left.set_duty(speeds[3]);
     }
-    pub fn update_target(&mut self, linear: Vector3<f32>, angular: Vector3<f32>) {
+    pub fn update_target(&mut self, linear: [f32; 3], angular: [f32; 3]) {
         self.target_angular_velocity = angular;
         self.target_linear_velocity = linear;
     }
     pub fn run() {
         loop {}
+    }
+    pub fn get_orientation(acc: [f32; 3]) -> [f32; 2] {
+        //thetaX = arctan(y/z)
+        [0.0, 0.0]
     }
 }

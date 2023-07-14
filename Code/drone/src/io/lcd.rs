@@ -94,7 +94,17 @@ impl Lcd {
         self.lcd_write_four_bits(mode | (cmd & 0xF0), timer);
         self.lcd_write_four_bits(mode | ((cmd << 4) & 0xF0), timer);
     }
-    pub fn lcd_display_string(&mut self, string: &str, timer: &mut cortex_m::delay::Delay) {
+    pub fn lcd_display_string(
+        &mut self,
+        string: &str,
+        timer: &mut cortex_m::delay::Delay,
+        line: u8,
+    ) {
+        if line == 2 {
+            self.lcd_write(0xC0, 0x00, timer);
+        } else {
+            self.lcd_write(0x80, 0x00, timer);
+        }
         for char in string.as_bytes().iter() {
             self.lcd_write(*char, RS, timer)
         }

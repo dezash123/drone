@@ -1,0 +1,1 @@
+{"rustc":500818849268096273,"features":"","target":0,"profile":0,"path":0,"deps":[[9212589020583438000,"build_script_build",false,3159008755378190375]],"local":[{"RerunIfEnvChanged":{"var":"DEFMT_LOG","val":null}}],"rustflags":[],"metadata":0,"config":0,"compile_kind":0}
