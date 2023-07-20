@@ -1,15 +1,19 @@
 #![no_std]
 #![no_main]
-
 mod control;
 mod io;
 mod math;
 mod sensors;
+mod tests;
+use crate::sensors::imu::Accelerometer;
 use control::{flight_system, FlightSystem};
 use core::fmt::Write;
+use defmt::*;
+use defmt_rtt as _;
 use embedded_hal::digital::v2::OutputPin;
 use embedded_hal::prelude::_embedded_hal_blocking_i2c_Write;
 use embedded_hal::prelude::_embedded_hal_blocking_i2c_WriteRead;
+use embedded_hal::PwmPin;
 use fugit::RateExtU32;
 use hal::clocks::Clock;
 use hal::gpio::{Function, FunctionUart};
@@ -17,26 +21,23 @@ use hal::pwm::{InputHighRunning, Slices};
 use hal::{pac, I2C};
 use heapless::String;
 use io::lcd::Lcd;
-use sensors::imu::IMUError;
-use sensors::imu::IMUError::{ReadError, SetupError, WriteError};
-use sensors::imu::IMUHardwareType;
-use sensors::imu::MPU_6050;
-// use io::router::Server;
-use defmt::*;
-use defmt_rtt as _;
+use io::router::Server;
+use math::functions::atan;
 use panic_probe as _;
 use rp2040_hal as hal;
 use sensors::distance::DistanceSensor;
+use sensors::imu::IMUError;
+use sensors::imu::IMUError::{ReadError, SetupError, WriteError};
+use sensors::imu::IMUHardwareType;
 use sensors::imu::ICM_20948;
-
-use crate::sensors::imu::Accelerometer;
+use sensors::imu::MPU_6050;
 
 #[link_section = ".boot2"]
 #[used]
 pub static BOOT2: [u8; 256] = rp2040_boot2::BOOT_LOADER_GENERIC_03H;
 
 const EXT_CLK_HZ: u32 = 12_000_000;
-const MOTOR_HZ: u32 = 100_000;
+const MOTOR_HZ: u32 = 1_000_000;
 
 #[rp2040_hal::entry]
 fn main() -> ! {
@@ -70,6 +71,9 @@ fn main() -> ! {
     //     pins.gpio7.into_mode(),
     //     &mut pac.RESETS,
     // );
+    // for i in 0..100 {
+    //     info!("{}: {}", i, atan(1.0 / (i as f32), 5));
+    // }
     // lcd.init(&mut delay);
     // lcd.lcd_display_string("hello world", &mut delay, 1);
     // loop {
@@ -100,23 +104,24 @@ fn main() -> ! {
     // i2c.write(IMU_ADDRESS, &[0x6B, 0x01]);
     // let mut server = Server::new(
     //     pac.UART0,
-    //     pins.gpio16.into_mode::<FunctionUart>(),
-    //     pins.gpio17.into_mode::<FunctionUart>(),
+    //     pins.gpio0.into_mode::<FunctionUart>(),
+    //     pins.gpio1.into_mode::<FunctionUart>(),
     //     &mut pac.RESETS,
     //     clocks.peripheral_clock.freq(),
     // );
-    // let mut distance = DistanceSensor::new(
-    //     pac.I2C1,
-    //     pins.gpio18.into_mode(),
-    //     pins.gpio19.into_mode(),
-    //     &mut pac.RESETS,
-    // );
-
+    let mut distance = DistanceSensor::new(
+        pac.I2C1,
+        pins.gpio18.into_mode(),
+        pins.gpio19.into_mode(),
+        &mut pac.RESETS,
+    );
+    distance.init(&mut delay, &timer);
     // let mut p0 = slices.pwm0;
     // let mut p1 = slices.pwm1;
     // let mut p2 = slices.pwm2;
     // let mut p3 = slices.pwm3;
-
+    // info!("works");
+    // info!("{} {}", clocks.system_clock.freq().raw(), MOTOR_HZ);
     // let pwm_ratio: u8 = (clocks.system_clock.freq().raw() / MOTOR_HZ)
     //     .try_into()
     //     .unwrap();
@@ -136,8 +141,14 @@ fn main() -> ! {
     // let cp1 = m1.output_to(pins.gpio2);
     // let cp2 = m2.output_to(pins.gpio20);
     // let cp3 = m3.output_to(pins.gpio22);
-
-    // let mut flight_system = FlightSystem::new(m0, m1, m2, m3, imu, distance);
+    let mut imu = ICM_20948::new(
+        pac.I2C0,
+        pins.gpio24.into_mode(),
+        pins.gpio25.into_mode(),
+        &mut pac.RESETS,
+    );
+    imu.init(&mut delay);
+    let mut flight_system = FlightSystem::new(imu);
     //lcd.init(&mut delay);
     //let mut led_pin = pins.gpio25.into_push_pull_output();
     //imu.calibrate();
@@ -152,29 +163,35 @@ fn main() -> ! {
     // }
     // let mut imuinited = false;
 
-    let mut imu = MPU_6050::new(
-        pac.I2C0,
-        pins.gpio4.into_mode(),
-        pins.gpio5.into_mode(),
-        &mut pac.RESETS,
-    );
-    match imu.init(&mut delay, &timer) {
-        Ok(()) => (),
-        Err(e) => e.info(),
-    };
-    let mut tlast: u64 = 0;
+    // let mut imu = MPU_6050::new(
+    //     pac.I2C0,
+    //     pins.gpio4.into_mode(),
+    //     pins.gpio5.into_mode(),
+    //     &mut pac.RESETS,
+    // );
+    // match imu.init(&mut delay, &timer) {
+    //     Ok(()) => (),
+    //     Err(e) => e.info(),
+    // };
+    // let mut tlast: u64 = 0;
+    flight_system.init(&mut delay, &timer);
+    flight_system.run(&mut delay, &timer);
     loop {
-        match imu.update_raw_acc(&mut delay, &timer) {
-            Ok(()) => (),
-            Err(e) => e.info(),
-        }
-        let v4 = imu.get_acc();
-        let or = FlightSystem::get_orientation(v4.0);
-        info!("x:{}", or[0]);
-        info!("y:{}", or[1]);
-        info!("dt:{}", v4.1 - tlast);
-        tlast = v4.1;
 
+        // m0.set_duty(0xffff);
+        // delay.delay_ms(5000);
+        // m0.set_duty(0x0000);
+        // delay.delay_ms(5000);
+        // match imu.update_raw_acc(&mut delay, &timer) {
+        //     Ok(()) => (),
+        //     Err(e) => e.info(),
+        // }
+        // let v4 = imu.get_acc();
+        // let or = FlightSystem::get_orientation(v4.0);
+        // info!("x:{}", or[0]);
+        // info!("y:{}", or[1]);
+        // info!("dt:{}", v4.1 - tlast);
+        // tlast = v4.1;
         // let ax = i16::from_be_bytes([imu.raw_acc[0], imu.raw_acc[1]]);
         // let ay = i16::from_be_bytes([imu.raw_acc[2], imu.raw_acc[3]]);
         // let az = i16::from_be_bytes([imu.raw_acc[4], imu.raw_acc[5]]);

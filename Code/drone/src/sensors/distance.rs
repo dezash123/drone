@@ -1,3 +1,5 @@
+use cortex_m::delay::Delay;
+use defmt::info;
 use embedded_hal::prelude::_embedded_hal_blocking_i2c_Read;
 use embedded_hal::prelude::_embedded_hal_blocking_i2c_Write;
 use embedded_hal::prelude::_embedded_hal_blocking_i2c_WriteRead;
@@ -9,6 +11,9 @@ use hal::i2c::Error;
 use hal::pac::I2C1;
 use hal::{i2c::I2C, pac};
 use rp2040_hal as hal;
+pub enum DistanceSensorError {
+    InitFailed,
+}
 
 pub struct DistanceSensor {
     i2c: I2C<
@@ -29,5 +34,15 @@ impl DistanceSensor {
     ) -> Self {
         let mut i2c = I2C::i2c1(i2c1, sda_pin, scl_pin, 400.kHz(), resets, 125_000_000.Hz());
         Self { i2c }
+    }
+    pub fn init(
+        &mut self,
+        delay: &mut cortex_m::delay::Delay,
+        timer: &hal::Timer,
+    ) -> Result<(), DistanceSensorError> {
+        let mut buf: [u8; 1] = [0; 1];
+        self.i2c.write_read(0x52, &[0x01, 0x0F], &mut buf);
+        info!("{:#X}", buf);
+        Ok(())
     }
 }

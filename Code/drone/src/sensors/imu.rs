@@ -11,6 +11,7 @@ use hal::i2c::Error as I2CError;
 use hal::pac::I2C0;
 use hal::{i2c::I2C, pac};
 use panic_probe as _;
+
 use rp2040_hal as hal;
 
 pub trait Accelerometer {
@@ -163,7 +164,7 @@ const MAG_CNTL2_MODE_TEST: u8 = 16;
 const MAG_CNTL3: u8 = 0x32;
 
 const ACC_DIV: f32 = 16384.0;
-const GYR_DIV: f32 = 131.0;
+const GYR_DIV: f32 = 138.0;
 
 pub struct ICM_20948 {
     bank: u8,
@@ -577,7 +578,7 @@ const MPU_WHOAMI: u8 = 0x75;
 const MPU_GYR_START: u8 = 0x43;
 const MPU_ACC_START: u8 = 0x3B;
 const MPU_ACC_DIV: f32 = 4.0 * 9.81;
-const MPU_GYR_DIV: f32 = 250.0;
+const MPU_GYR_DIV: f32 = 125.0;
 
 pub struct MPU_6050 {
     raw_acc: [u8; 6],
@@ -727,5 +728,16 @@ impl Gyroscope for MPU_6050 {
         self.last_gyr = timer.get_counter().ticks();
         delay.delay_us(100);
         Ok(())
+    }
+}
+
+impl Sensor for MPU_6050 {
+    fn update_all(
+        &mut self,
+        delay: &mut cortex_m::delay::Delay,
+        timer: &hal::Timer,
+    ) -> Result<(), IMUError> {
+        self.update_raw_acc(delay, timer)?;
+        self.update_raw_gyr(delay, timer)
     }
 }
