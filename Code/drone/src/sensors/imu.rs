@@ -1,4 +1,3 @@
-use cortex_m::peripheral::MPU;
 use defmt::*;
 use defmt_rtt as _;
 use embedded_hal::prelude::_embedded_hal_blocking_i2c_Write;
@@ -49,7 +48,7 @@ pub trait Sensor {
         timer: &hal::Timer,
     ) -> Result<(), IMUError>;
 }
-
+#[derive(Debug)]
 pub enum IMUHardwareType {
     Gyro,
     Accelerometer,
@@ -58,6 +57,8 @@ pub enum IMUHardwareType {
     Memory,
     Unknown,
 }
+
+#[derive(Debug)]
 pub enum IMUError {
     ReadError(IMUHardwareType, u8, I2CError),
     WriteError(IMUHardwareType, u8, u8, I2CError),
@@ -96,7 +97,30 @@ impl IMUError {
     }
     fn i2c_error_info(err: I2CError) {
         match err {
-            I2CError::Abort(code) => info!("abort with code {0}", code),
+            I2CError::Abort(v) => {
+                if v & 1 << 12 != 0 {
+                    info!("ArbitrationLoss")
+                } else if v & 1 << 7 != 0 {
+                    info!("ABRT_SBYTE_ACKDET")
+                }
+                // ha::i2c::ErrorKind::Bus,
+                // if v & 1<<6 != 0 // ABRT_HS_ACKDET
+                // ha::i2c::ErrorKind::Bus,
+                // if v & 1<<4 != 0 // ABRT_GCALL_NOACK
+                // ha::i2c::ErrorKind::NoAcknowledge(eh1_0_alpha::i2c::NoAcknowledgeSource::Address),
+                // if v & 1<<3 != 0 // ABRT_TXDATA_NOACK
+                // ha::i2c::ErrorKind::NoAcknowledge(eh1_0_alpha::i2c::NoAcknowledgeSource::Data),
+                // if v & 1<<2 != 0 // ABRT_10ADDR2_NOACK
+                // ha::i2c::ErrorKind::NoAcknowledge(eh1_0_alpha::i2c::NoAcknowledgeSource::Address),
+                // if v & 1<<1 != 0 // ABRT_10ADDR1_NOACK
+                // ha::i2c::ErrorKind::NoAcknowledge(eh1_0_alpha::i2c::NoAcknowledgeSource::Address),
+                else if v & 1 << 0 != 0 {
+                    // ABRT_7B_ADDR_NOACK
+                    info!("no acknowledge from device")
+                } else {
+                    info!("Other abort")
+                };
+            }
             I2CError::AddressReserved(addr) => info!("address {0} out of range", addr),
             I2CError::AddressOutOfRange(addr) => info!("address {0} out of range", addr),
             I2CError::InvalidReadBufferLength => info!("Invalid read buffer length"),
@@ -163,8 +187,8 @@ const MAG_CNTL2_MODE_CONT4: u8 = 8;
 const MAG_CNTL2_MODE_TEST: u8 = 16;
 const MAG_CNTL3: u8 = 0x32;
 
-const ACC_DIV: f32 = 16384.0;
-const GYR_DIV: f32 = 138.0;
+const ACC_DIV: f32 = 1.0 / 2048.0;
+const GYR_DIV: f32 = 1.0 / 138.0;
 
 pub struct ICM_20948 {
     bank: u8,
@@ -194,7 +218,7 @@ impl ICM_20948 {
         let mut firstbank: [u8; 1] = [69; 1];
         match i2c.write_read(IMU_ADDR, &[BANK_SEL], &mut firstbank) {
             Ok(()) => (),
-            Err(e) => (),
+            Err(e) => info!("no read imu"),
         };
         Self {
             bank: firstbank[0] << 2 >> 6,
@@ -292,7 +316,7 @@ impl ICM_20948 {
                 e,
             )),
         };
-        delay.delay_ms(1);
+        // delay.delay_us(100);
         result
     }
 
@@ -514,16 +538,16 @@ impl Accelerometer for ICM_20948 {
             }
         };
         self.last_acc = timer.get_counter().ticks();
-        delay.delay_us(100);
+        // delay.delay_us(100);
         result
     }
     fn get_acc(&self) -> ([f32; 3], u64) {
         // meters per sec
         (
             [
-                f32::from(i16::from_be_bytes([self.raw_acc[0], self.raw_acc[1]])) / ACC_DIV,
-                f32::from(i16::from_be_bytes([self.raw_acc[2], self.raw_acc[3]])) / ACC_DIV,
-                f32::from(i16::from_be_bytes([self.raw_acc[4], self.raw_acc[5]])) / ACC_DIV,
+                f32::from(i16::from_be_bytes([self.raw_acc[0], self.raw_acc[1]])) * ACC_DIV,
+                f32::from(i16::from_be_bytes([self.raw_acc[2], self.raw_acc[3]])) * ACC_DIV,
+                f32::from(i16::from_be_bytes([self.raw_acc[4], self.raw_acc[5]])) * ACC_DIV,
             ],
             self.last_acc,
         )
@@ -545,16 +569,16 @@ impl Gyroscope for ICM_20948 {
             Err(e) => return Err(IMUError::ReadError(IMUHardwareType::Gyro, GYR_START, e)),
         };
         self.last_gyr = timer.get_counter().ticks();
-        delay.delay_us(100);
+        // delay.delay_us(100);
         result
     }
     fn get_gyr(&self) -> ([f32; 3], u64) {
         // degrees per sec
         (
             [
-                f32::from(i16::from_be_bytes([self.raw_gyr[0], self.raw_gyr[1]])) / GYR_DIV,
-                f32::from(i16::from_be_bytes([self.raw_gyr[2], self.raw_gyr[3]])) / GYR_DIV,
-                f32::from(i16::from_be_bytes([self.raw_gyr[4], self.raw_gyr[5]])) / GYR_DIV,
+                f32::from(i16::from_be_bytes([self.raw_gyr[0], self.raw_gyr[1]])) * GYR_DIV,
+                f32::from(i16::from_be_bytes([self.raw_gyr[2], self.raw_gyr[3]])) * GYR_DIV,
+                f32::from(i16::from_be_bytes([self.raw_gyr[4], self.raw_gyr[5]])) * GYR_DIV,
             ],
             self.last_gyr,
         )

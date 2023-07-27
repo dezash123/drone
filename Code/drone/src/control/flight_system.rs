@@ -1,3 +1,5 @@
+use crate::io::radio::{Radio, RadioCommand};
+use crate::math::functions::{cartesian_to_polar, cartesian_to_polar_theta};
 use crate::sensors::imu::{Accelerometer, Gyroscope, IMUError, Sensor};
 use crate::sensors::{
     distance::DistanceSensor,
@@ -5,31 +7,57 @@ use crate::sensors::{
 };
 use core::u16;
 use cortex_m::delay::Delay;
+use cortex_m::peripheral::SYST;
 use defmt::info;
 use embedded_hal::PwmPin;
+use hal::pwm::{Channel, FreeRunning, InputHighRunning, Pwm0, Pwm1, Pwm2, Pwm3, Slices, A};
+use hal::sio::Spinlock0 as Inputlock;
+use hal::sio::Spinlock1 as Delaylock;
+use hal::sio::Spinlock2 as Timerlock;
+
 use hal::Timer;
+use hal::{
+    multicore::{Multicore, Stack},
+    pac,
+    sio::Sio,
+};
 use libm::atanf;
 use rp2040_hal as hal;
-use rp2040_hal::pwm::{Channel, FreeRunning, InputHighRunning, Pwm0, Pwm1, Pwm2, Pwm3, Slices, A};
-const FR_PORT: u8 = 1;
-const FL_PORT: u8 = 2;
-const BR_PORT: u8 = 3;
-const BL_PORT: u8 = 4;
 
-const PI: f32 = 3.141592653589793238462643383279506939937f32; // how far ive memorized
-const RAD2DEG: f32 = 180.0 / PI;
-const DEG2RAD: f32 = PI / 180.0;
-const LIFTOFF_SPEED: f32 = 5.0;
+pub struct DroneState {
+    last_input: RadioCommand,
+    last_acc: ([f32; 3], u64),
+    last_gyr: ([f32; 3], u64),
+    current_command: Option<DroneCommand>,
+}
 
-const CAL_LENGTH: u32 = 100;
+pub enum DroneCommand {
+    Hover,
+    Land,
+    Takeoff,
+    Calibrate,
+    PilotControl,
+}
+
+impl DroneState {
+    pub fn update(&mut self, new: &mut DroneState) {
+        let _lock = Inputlock::claim();
+        unsafe { self = new };
+    }
+}
+
+static mut STATE: Option<DroneState> = None;
+static TIMER: Option<hal::Timer> = None;
+static mut DELAY: Option<cortex_m::delay::Delay> = None;
+
+static mut CORE1_STACK: Stack<4096> = Stack::new();
+
+// arbitrary max values
+const MAX_TWIST: f32 = 10.0; //dps
+const MAX_TILT: f32 = 20.0; //degrees
+const CAL_LENGTH: u32 = 100; //number of cycles
 
 pub struct FlightSystem {
-    // front_left: Channel<Pwm0, FreeRunning, A>,
-    // back_left: Channel<Pwm1, FreeRunning, A>,
-    // front_right: Channel<Pwm2, FreeRunning, A>,
-    // back_right: Channel<Pwm3, FreeRunning, A>,
-    imu: ICM_20948,
-    // distance: DistanceSensor,
     target_linear_velocity: [f32; 3],
     target_angular_velocity: [f32; 3],
     theta: [f32; 3],
@@ -42,21 +70,8 @@ pub struct FlightSystem {
     prevacc: u64,
 }
 impl FlightSystem {
-    pub fn new(
-        // p0: Channel<Pwm0, FreeRunning, A>,
-        // p1: Channel<Pwm1, FreeRunning, A>,
-        // p2: Channel<Pwm2, FreeRunning, A>,
-        // p3: Channel<Pwm3, FreeRunning, A>,
-        imu: ICM_20948,
-        // distance: DistanceSensor,
-    ) -> Self {
+    pub fn new() -> Self {
         Self {
-            // front_left: p0,
-            // back_left: p1,
-            // front_right: p2,
-            // back_right: p3,
-            imu,
-            // distance,
             target_linear_velocity: [0.0, 0.0, 5.0],
             target_angular_velocity: [0.0, 0.0, 0.0],
             theta: [0.0, 0.0, 0.0],
@@ -69,14 +84,36 @@ impl FlightSystem {
             prevacc: 0,
         }
     }
-    pub fn init(
+    fn core0_task(
+        fl: Channel<Pwm0, FreeRunning, A>,
+        bl: Channel<Pwm1, FreeRunning, A>,
+        br: Channel<Pwm2, FreeRunning, A>,
+        fr: Channel<Pwm3, FreeRunning, A>,
+    ) -> ! {
+        loop {}
+    }
+    fn core1_task(imu: ICM_20948, radio: Radio) -> ! {
+        loop {}
+    }
+    pub fn start(
         &mut self,
-        delay: &mut cortex_m::delay::Delay,
-        timer: &hal::Timer,
-    ) -> Result<(), IMUError> {
-        self.imu.update_all(delay, timer)?;
-        let a = self.imu.get_acc();
-        let nums = FlightSystem::get_sf_orientation(a.0);
+        fl: Channel<Pwm0, FreeRunning, A>,
+        bl: Channel<Pwm1, FreeRunning, A>,
+        br: Channel<Pwm2, FreeRunning, A>,
+        fr: Channel<Pwm3, FreeRunning, A>,
+        imu: ICM_20948,
+        radio: Radio,
+        syst: SYST,
+        resets: pac::RESETS,
+        delay_clock_hz: u32,
+    ) -> ! {
+        Delaylock::claim();
+        Timerlock::claim();
+        unsafe {
+            DELAY = Some(cortex_m::delay::Delay::new(syst, delay_clock_hz));
+            imu.update_all(&mut DELAY.unwrap(), &TIMER.unwrap())
+                .unwrap();
+        let a = imu.get_acc();
         self.prevgyr = timer.get_counter().ticks();
         let mut sig_theta: [f64; 3] = [0.0, 0.0, 0.0];
         let mut sig_a: [f64; 3] = [0.0, 0.0, 0.0];
@@ -100,18 +137,18 @@ impl FlightSystem {
         }
         self.prevgyr = self.imu.get_gyr().1;
         self.prevacc = self.imu.get_acc().1;
-        Ok(())
+        self.run(delay, timer);
     }
     fn calc_speeds(&self) -> [u16; 4] {
         [0, 0, 0, 0]
     }
-    // fn update(&mut self) {
-    //     let speeds: [u16; 4] = Self::calc_speeds(self);
-    //     self.front_left.set_duty(speeds[0]);
-    //     self.front_right.set_duty(speeds[1]);
-    //     self.back_right.set_duty(speeds[2]);
-    //     self.back_left.set_duty(speeds[3]);
-    // }
+    fn set_speeds(&mut self, speeds: [u16; 4]) {
+        // clockwise starting at FL
+        self.front_left.set_duty(speeds[0]);
+        self.front_right.set_duty(speeds[1]);
+        self.back_right.set_duty(speeds[2]);
+        self.back_left.set_duty(speeds[3]);
+    }
     pub fn update_target(&mut self, linear: [f32; 3], angular: [f32; 3]) {
         self.target_angular_velocity = angular;
         self.target_linear_velocity = linear;
@@ -129,12 +166,14 @@ impl FlightSystem {
             if failrow > 100 {
                 panic!();
             }
-            let gyr = self.imu.get_gyr();
-            self.theta_from_dt(gyr);
-            info!(
-                "{}, {}, {}",
-                self.theta[0] as i16, self.theta[1] as i16, self.theta[2] as i16
-            );
+            let tta = cartesian_to_polar(self.imu.get_acc().0);
+            info!("{}, {}, {}", tta[1] as i16, tta[2] as i16, tta[0]);
+            // let gyr = self.imu.get_gyr();
+            // self.theta_from_dt(gyr);
+            // info!(
+            //     "{}, {}, {}",
+            //     self.theta[0] as i16, self.theta[1] as i16, self.theta[2] as i16
+            // );
         }
     }
     #[inline(always)]
