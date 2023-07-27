@@ -105,5 +105,8 @@ fn main() -> ! {
     let _ = m2.output_to(pins.gpio20);
     let _ = m3.output_to(pins.gpio22);
     let mut flight_system = FlightSystem::new();
+    let mut mc = Multicore::new(&mut pac.PSM, &mut pac.PPB, &mut sio.fifo);
+    let cores = mc.cores();
+    let core1 = &mut cores[1];
     flight_system.start();
 }

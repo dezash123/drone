@@ -1,5 +1,7 @@
 use crate::io::radio::{Radio, RadioCommand};
-use crate::math::functions::{cartesian_to_polar, cartesian_to_polar_theta};
+use crate::math::functions::{
+    cartesian_to_polar, cartesian_to_polar_magnitude, cartesian_to_polar_theta,
+};
 use crate::sensors::imu::{Accelerometer, Gyroscope, IMUError, Sensor};
 use crate::sensors::{
     distance::DistanceSensor,
@@ -14,22 +16,24 @@ use hal::pwm::{Channel, FreeRunning, InputHighRunning, Pwm0, Pwm1, Pwm2, Pwm3, S
 use hal::sio::Spinlock0 as Inputlock;
 use hal::sio::Spinlock1 as Delaylock;
 use hal::sio::Spinlock2 as Timerlock;
+use hal::sio::Spinlock3 as Motorlock;
 
+// i could use intercore fifo but its too scary
 use hal::Timer;
 use hal::{
     multicore::{Multicore, Stack},
     pac,
     sio::Sio,
 };
-use libm::atanf;
 use rp2040_hal as hal;
 
-pub struct DroneState {
+pub struct DroneCoreState {
     last_input: RadioCommand,
     last_acc: ([f32; 3], u64),
     last_gyr: ([f32; 3], u64),
     current_command: Option<DroneCommand>,
 }
+pub struct DronePeripheralState {}
 
 pub enum DroneCommand {
     Hover,
@@ -37,16 +41,10 @@ pub enum DroneCommand {
     Takeoff,
     Calibrate,
     PilotControl,
+    FallOutOfTheSky, // probably better than going up
 }
 
-impl DroneState {
-    pub fn update(&mut self, new: &mut DroneState) {
-        let _lock = Inputlock::claim();
-        unsafe { self = new };
-    }
-}
-
-static mut STATE: Option<DroneState> = None;
+static mut CORESTATE: Option<DroneCoreState> = None;
 static TIMER: Option<hal::Timer> = None;
 static mut DELAY: Option<cortex_m::delay::Delay> = None;
 
@@ -58,6 +56,11 @@ const MAX_TILT: f32 = 20.0; //degrees
 const CAL_LENGTH: u32 = 100; //number of cycles
 
 pub struct FlightSystem {
+    fl: Channel<Pwm0, FreeRunning, A>,
+    bl: Channel<Pwm1, FreeRunning, A>,
+    br: Channel<Pwm2, FreeRunning, A>,
+    fr: Channel<Pwm3, FreeRunning, A>,
+
     target_linear_velocity: [f32; 3],
     target_angular_velocity: [f32; 3],
     theta: [f32; 3],
@@ -68,10 +71,20 @@ pub struct FlightSystem {
     p: [f32; 3], // no way this works
     prevgyr: u64,
     prevacc: u64,
+    g: f32,
 }
 impl FlightSystem {
-    pub fn new() -> Self {
+    pub fn new(
+        fl: Channel<Pwm0, FreeRunning, A>,
+        bl: Channel<Pwm1, FreeRunning, A>,
+        br: Channel<Pwm2, FreeRunning, A>,
+        fr: Channel<Pwm3, FreeRunning, A>,
+    ) -> Self {
         Self {
+            fl,
+            bl,
+            br,
+            fr,
             target_linear_velocity: [0.0, 0.0, 5.0],
             target_angular_velocity: [0.0, 0.0, 0.0],
             theta: [0.0, 0.0, 0.0],
@@ -82,18 +95,47 @@ impl FlightSystem {
             v: [0.0, 0.0, 0.0],
             p: [0.0, 0.0, 0.0],
             prevacc: 0,
+            g: 0.0,
         }
     }
-    fn core0_task(
-        fl: Channel<Pwm0, FreeRunning, A>,
-        bl: Channel<Pwm1, FreeRunning, A>,
-        br: Channel<Pwm2, FreeRunning, A>,
-        fr: Channel<Pwm3, FreeRunning, A>,
-    ) -> ! {
+    fn core0_task() -> ! {
         loop {}
     }
     fn core1_task(imu: ICM_20948, radio: Radio) -> ! {
-        loop {}
+        let mut failed_imu = 0;
+        let mut failed_radio = 0;
+        let mut newimu = false;
+        let mut newradio = false;
+        loop {
+            unsafe {
+                let _dlock = Delaylock::claim();
+                let _tlock = Timerlock::claim();
+                newimu = match imu.update_all(&mut DELAY.unwrap(), &TIMER.unwrap()) {
+                    Ok(()) => true,
+                    Err(e) => {
+                        failed_imu = 0;
+                        false
+                    }
+                };
+            };
+            newradio = match radio.read() {
+                Ok(()) => {
+                    failed_radio = 0;
+                    true
+                }
+                Err(e) => {
+                    failed_radio += 1;
+                    false
+                }
+            };
+        }
+    }
+    fn fall_out_of_the_sky(&mut self) -> ! {
+        let _mlock = Motorlock::claim();
+        self.set_speeds([0; 4]);
+        loop {
+            panic!("AAAAAAAAAAAAAaaa");
+        }
     }
     pub fn start(
         &mut self,
@@ -107,26 +149,26 @@ impl FlightSystem {
         resets: pac::RESETS,
         delay_clock_hz: u32,
     ) -> ! {
-        Delaylock::claim();
-        Timerlock::claim();
+        let mut sig_theta: [f64; 3] = [0.0, 0.0, 0.0];
+        let mut sig_a: [f64; 3] = [0.0, 0.0, 0.0];
         unsafe {
+            let _dlock = Delaylock::claim();
+            let _tlock = Timerlock::claim();
             DELAY = Some(cortex_m::delay::Delay::new(syst, delay_clock_hz));
             imu.update_all(&mut DELAY.unwrap(), &TIMER.unwrap())
                 .unwrap();
-        let a = imu.get_acc();
-        self.prevgyr = timer.get_counter().ticks();
-        let mut sig_theta: [f64; 3] = [0.0, 0.0, 0.0];
-        let mut sig_a: [f64; 3] = [0.0, 0.0, 0.0];
-        for j in 0..CAL_LENGTH {
-            match self.imu.update_all(delay, timer) {
-                Ok(()) => (),
-                Err(e) => e.info(),
-            };
-            let new_dtheta = self.imu.get_gyr().0;
-            let new_da = self.imu.get_acc().0;
-            for i in 0..3 {
-                sig_theta[i] += new_dtheta[i] as f64;
-                sig_a[i] += new_da[i] as f64;
+            let a = imu.get_acc();
+            self.prevgyr = TIMER.unwrap().get_counter().ticks();
+
+            for j in 0..CAL_LENGTH {
+                imu.update_all(&mut DELAY.unwrap(), &TIMER.unwrap())
+                    .unwrap();
+                let new_dtheta = imu.get_gyr().0;
+                let new_da = imu.get_acc().0;
+                for i in 0..3 {
+                    sig_theta[i] += new_dtheta[i] as f64;
+                    sig_a[i] += new_da[i] as f64;
+                }
             }
         }
         for i in 0..3 {
@@ -135,46 +177,23 @@ impl FlightSystem {
             sig_a[i] /= CAL_LENGTH as f64;
             self.mu_a[i] = sig_a[i] as f32;
         }
-        self.prevgyr = self.imu.get_gyr().1;
-        self.prevacc = self.imu.get_acc().1;
-        self.run(delay, timer);
+        self.g = cartesian_to_polar_magnitude(self.mu_a);
+        self.prevgyr = imu.get_gyr().1;
+        self.prevacc = imu.get_acc().1;
     }
     fn calc_speeds(&self) -> [u16; 4] {
         [0, 0, 0, 0]
     }
     fn set_speeds(&mut self, speeds: [u16; 4]) {
         // clockwise starting at FL
-        self.front_left.set_duty(speeds[0]);
-        self.front_right.set_duty(speeds[1]);
-        self.back_right.set_duty(speeds[2]);
-        self.back_left.set_duty(speeds[3]);
+        self.fl.set_duty(speeds[0]);
+        self.fr.set_duty(speeds[1]);
+        self.br.set_duty(speeds[2]);
+        self.bl.set_duty(speeds[3]);
     }
     pub fn update_target(&mut self, linear: [f32; 3], angular: [f32; 3]) {
         self.target_angular_velocity = angular;
         self.target_linear_velocity = linear;
-    }
-    pub fn run(&mut self, delay: &mut cortex_m::delay::Delay, timer: &hal::Timer) -> ! {
-        let mut failrow: u8 = 0;
-        loop {
-            match self.imu.update_all(delay, timer) {
-                Ok(()) => (),
-                Err(e) => {
-                    e.info();
-                    failrow += 1;
-                }
-            };
-            if failrow > 100 {
-                panic!();
-            }
-            let tta = cartesian_to_polar(self.imu.get_acc().0);
-            info!("{}, {}, {}", tta[1] as i16, tta[2] as i16, tta[0]);
-            // let gyr = self.imu.get_gyr();
-            // self.theta_from_dt(gyr);
-            // info!(
-            //     "{}, {}, {}",
-            //     self.theta[0] as i16, self.theta[1] as i16, self.theta[2] as i16
-            // );
-        }
     }
     #[inline(always)]
     fn theta_from_dt(&mut self, reading: ([f32; 3], u64)) {
