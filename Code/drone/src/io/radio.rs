@@ -112,7 +112,7 @@ impl Radio {
     }
 }
 
-#[derive(Debug, Format)]
+#[derive(Debug, Format, Clone, Copy)]
 pub struct RadioCommand {
     z_throttle: f32,
     y_throttle: f32,
