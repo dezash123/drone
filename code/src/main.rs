@@ -4,44 +4,18 @@
 mod control;
 mod math;
 mod sensors;
-mod tests;
-use crate::sensors::imu::Accelerometer;
-use control::{flight_system, FlightSystem};
+use control::radio::Radio;
+use control::FlightSystem;
 use core::fmt::Write;
-use cortex_m::asm::delay;
 use defmt::*;
 use defmt_rtt as _;
-use embedded_hal::digital::v2::OutputPin;
-use embedded_hal::prelude::_embedded_hal_blocking_i2c_Write;
-use embedded_hal::prelude::_embedded_hal_blocking_i2c_WriteRead;
-use embedded_hal::PwmPin;
-use fugit::RateExtU32;
-use hal::gpio::{Function, FunctionUart};
-use hal::pwm::{InputHighRunning, Slices};
-use hal::{
-    clocks::init_clocks_and_plls,
-    uart::{
-        self, DataBits, Parity, ReadError, ReadErrorType, Reader, StopBits, UartConfig,
-        UartPeripheral,
-    },
-    watchdog::Watchdog,
-    Clock,
-};
-use hal::{pac, I2C};
-use heapless::String;
-use io::lcd::Lcd;
-use io::radio;
-use io::radio::Radio;
-use io::router::Server;
+use hal::pac;
+use hal::pwm::Slices;
+use hal::Clock;
 use panic_probe as _;
 use rp2040_hal as hal;
-use rp2040_hal::multicore::{Multicore, Stack};
-use sensors::distance::DistanceSensor;
-use sensors::imu::IMUError;
-use sensors::imu::IMUHardwareType;
-use sensors::imu::Sensor;
+use rp2040_hal::multicore::Multicore;
 use sensors::imu::ICM_20948;
-use sensors::imu::MPU_6050;
 
 #[link_section = ".boot2"]
 #[used]

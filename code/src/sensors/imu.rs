@@ -638,14 +638,10 @@ impl MPU_6050 {
             i2c,
         }
     }
-    pub fn init(
-        &mut self,
-        delay: &mut cortex_m::delay::Delay,
-        timer: &hal::Timer,
-    ) -> Result<(), IMUError> {
-        self.write(0x6B, 0b10000000, delay);
+    pub fn init(&mut self, delay: &mut cortex_m::delay::Delay) -> Result<(), IMUError> {
+        self.write(0x6B, 0b10000000, delay)?;
         delay.delay_ms(200);
-        self.write(0x6B, 0, delay);
+        self.write(0x6B, 0, delay)?;
         if self.read_out::<1>(MPU_WHOAMI)?[0] != MPU_ID {
             return Err(IMUError::SetupError("IMU not found!!!"));
         }

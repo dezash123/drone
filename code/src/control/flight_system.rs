@@ -1,23 +1,16 @@
-use crate::io::radio::{Radio, RadioCommand};
+use crate::control::radio::{Radio, RadioCommand};
 use crate::math::functions::{
     cartesian_to_polar, cartesian_to_polar_magnitude, cartesian_to_polar_theta,
 };
-use crate::sensors::imu::{Accelerometer, Gyroscope, IMUError, Sensor};
-use crate::sensors::{
-    distance::DistanceSensor,
-    imu::{ICM_20948, MPU_6050},
-};
+use crate::sensors::imu::ICM_20948;
+use crate::sensors::imu::{Accelerometer, Gyroscope, Sensor};
 use core::u16;
 use defmt::info;
-use embedded_hal::PwmPin;
 use hal::pwm::{Channel, FreeRunning, Pwm0, Pwm1, Pwm2, Pwm3, A};
 use hal::sio::Spinlock0 as CoreStateLock;
 
 // i could use intercore fifo but im too lazy
-use hal::{
-    multicore::{Core, Stack},
-    pac,
-};
+use hal::multicore::{Core, Stack};
 use rp2040_hal as hal;
 
 #[derive(Clone, Copy)]
@@ -27,6 +20,8 @@ pub struct DroneCoreState {
     last_gyr: ([f32; 3], u64),
     current_command: DroneCommand,
 }
+
+#[derive(Clone, Copy)]
 pub struct DronePeripheralState {}
 
 #[derive(Clone, Copy)]
@@ -155,19 +150,17 @@ impl FlightSystem {
     ) -> ! {
         let mut sig_theta: [f64; 3] = [0.0, 0.0, 0.0];
         let mut sig_a: [f64; 3] = [0.0, 0.0, 0.0];
-        unsafe {
-            imu.update_all(&mut delay, &timer).unwrap();
-            let a = imu.get_acc();
-            self.prevgyr = timer.get_counter().ticks();
+        imu.update_all(&mut delay, &timer).unwrap();
+        let a = imu.get_acc();
+        self.prevgyr = timer.get_counter().ticks();
 
-            for j in 0..CAL_LENGTH {
-                imu.update_all(&mut delay, &timer).unwrap();
-                let new_dtheta = imu.get_gyr().0;
-                let new_da = imu.get_acc().0;
-                for i in 0..3 {
-                    sig_theta[i] += new_dtheta[i] as f64;
-                    sig_a[i] += new_da[i] as f64;
-                }
+        for _ in 0..CAL_LENGTH {
+            imu.update_all(&mut delay, &timer).unwrap();
+            let new_dtheta = imu.get_gyr().0;
+            let new_da = imu.get_acc().0;
+            for i in 0..3 {
+                sig_theta[i] += new_dtheta[i] as f64;
+                sig_a[i] += new_da[i] as f64;
             }
         }
         for i in 0..3 {
@@ -232,17 +225,15 @@ impl FlightSystem {
         let mut newimu = false;
         let mut newradio = false;
         loop {
-            unsafe {
-                newimu = match imu.update_all(&mut delay, &timer) {
-                    Ok(()) => {
-                        failed_imu = 0;
-                        true
-                    }
-                    Err(e) => {
-                        failed_imu += 1;
-                        false
-                    }
-                };
+            newimu = match imu.update_all(&mut delay, &timer) {
+                Ok(()) => {
+                    failed_imu = 0;
+                    true
+                }
+                Err(e) => {
+                    failed_imu += 1;
+                    false
+                }
             };
             newradio = match radio.read() {
                 Ok(()) => {

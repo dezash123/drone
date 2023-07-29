@@ -1,30 +1,15 @@
 // FlySky iA6B ibus interface
 // only rx for now
-use cortex_m::delay::Delay;
 use cortex_m::prelude::_embedded_hal_serial_Read;
-use defmt::info;
 use defmt::Format;
-use fugit::HertzU32;
 use fugit::RateExtU32;
-use hal::gpio::bank0::{Gpio0, Gpio1, Gpio16, Gpio17};
+use hal::gpio::bank0::{Gpio16, Gpio17};
 use hal::gpio::Function;
 use hal::gpio::Pin;
-use hal::i2c::I2C;
-use hal::uart::ValidUartPinout;
 use hal::{
-    clocks::init_clocks_and_plls,
-    gpio::{FunctionUart, Pins},
-    pac::{self, UART0},
-    sio::Sio,
-    uart::{
-        self, DataBits, Parity, ReadError, ReadErrorType, Reader, StopBits, UartConfig,
-        UartPeripheral,
-    },
-    watchdog::Watchdog,
-    Clock,
+    pac,
+    uart::{DataBits, Reader, StopBits, UartConfig, UartPeripheral},
 };
-use nb::Error;
-use nb::Error::Other;
 use rp2040_hal as hal;
 
 pub enum RadioError {

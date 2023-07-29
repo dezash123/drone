@@ -1,4 +1,6 @@
 pub mod flight_system;
+pub use flight_system::FlightSystem;
 pub mod lcd;
+pub use lcd::Lcd;
 pub mod radio;
-pub mod router;
+pub use radio::Radio;
