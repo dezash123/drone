@@ -1,1 +1,0 @@
-Lcd<I2C0, rp2040_hal::gpio::Pin<Gpio0, rp2040_hal::gpio::Function<I2C0>>, rp2040_hal::gpio::Pin<Gpio1, rp2040_hal::gpio::Function<I2C0>>>
