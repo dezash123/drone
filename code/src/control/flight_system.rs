@@ -55,6 +55,9 @@ const KDX: f32 = 0.0;
 const KPY: f32 = 0.0;
 const KIY: f32 = 0.0;
 const KDY: f32 = 0.0;
+const KPTWIST: f32 = 0.0;
+const KITWIST: f32 = 0.0;
+const KDTWIST: f32 = 0.0;
 
 //percent difference for manual control
 const MAX_THROTTLE_DIFFERENCE: f32 = 0.3;
@@ -64,12 +67,9 @@ pub struct FlightSystem {
     bl: Channel<Pwm1, FreeRunning, A>,
     br: Channel<Pwm2, FreeRunning, A>,
     fr: Channel<Pwm3, FreeRunning, A>,
-    theta: [f32; 3],
     mu_theta: [f32; 3],
-    a: [f32; 3],
     mu_a: [f32; 3],
-    v: [f32; 3],
-    p: [f32; 3], // no way this works
+
     prevgyr: u64,
     prevacc: u64,
     g: f32,
@@ -77,8 +77,10 @@ pub struct FlightSystem {
     last_gyr_time: u64,
     last_integral_x: f32,
     last_integral_y: f32,
+    last_integral_twist: f32,
     last_error_x: f32,
     last_error_y: f32,
+    last_error_twist: f32,
 }
 
 impl FlightSystem {
@@ -93,17 +95,19 @@ impl FlightSystem {
             bl,
             br,
             fr,
-            theta: [0.0, 0.0, 0.0],
             prevgyr: 0,
             mu_theta: [0.0, 0.0, 0.0],
-            a: [0.0, 0.0, 0.0],
             mu_a: [0.0, 0.0, 0.0],
-            v: [0.0, 0.0, 0.0],
-            p: [0.0, 0.0, 0.0],
             prevacc: 0,
             g: 0.0,
             last_acc_time: 0,
             last_gyr_time: 0,
+            last_error_x: 0.0,
+            last_error_y: 0.0,
+            last_integral_x: 0.0,
+            last_integral_y: 0.0,
+            last_integral_twist: 0.0,
+            last_error_twist: 0.0,
         }
     }
     fn core0_task(&mut self) -> ! {
@@ -149,26 +153,45 @@ impl FlightSystem {
         adt: f32,
         tdt: f32,
     ) {
-        let new_speeds = [throttle; 4];
+        let mut new_speeds = [throttle; 4];
         // probably need kalman filter and dtheta influence for v_xy > 0
         let measured_angle = cartesian_to_polar(a, true);
+
         let error_x = desired_angle[0] - measured_angle[0];
         let error_y = desired_angle[1] - measured_angle[1];
+        let error_twist = desired_twist - dtheta[2];
+
         let p_x = KPX * error_x;
         let p_y = KPY * error_x;
+        let p_twist = KPTWIST * error_twist;
+
         // use setpoint velocity and measured omega instead????
         let d_x = KDX * (error_x - self.last_error_x) / adt;
         let d_y = KDY * (error_y - self.last_error_y) / adt;
+        let d_twist = KDTWIST * (error_twist - self.last_error_twist) / tdt;
+
         self.last_error_x = error_x;
         self.last_error_y = error_y;
+        self.last_error_twist = error_twist;
+
         let i_x = KIX * error_x * adt + self.last_integral_x;
         let i_y = KIY * error_y * adt + self.last_integral_y;
+        let i_twist = KITWIST * error_twist * tdt + self.last_integral_twist;
+
+        self.last_integral_x = i_x;
+        self.last_integral_y = i_y;
+        self.last_integral_twist = i_twist;
+
         let all_x = p_x + d_x + i_x;
         let all_y = p_y + d_y + i_y;
-        new_speeds[0] += all_x + all_y;
-        new_speeds[1] += -all_x + all_y;
-        new_speeds[2] += -all_x - all_y;
-        new_speeds[3] += all_x - all_y;
+        let all_twist = p_twist + d_twist + i_twist;
+
+        new_speeds[0] += all_x + all_y + all_twist;
+        new_speeds[1] += -all_x + all_y - all_twist;
+        new_speeds[2] += -all_x - all_y + all_twist;
+        new_speeds[3] += all_x - all_y - all_twist;
+
+        self.set_speeds(new_speeds);
     }
     fn full_manual(&mut self, command: RadioCommand) {
         // full manual control
@@ -259,25 +282,6 @@ impl FlightSystem {
         self.fr.set_duty(speedsu16[1]);
         self.br.set_duty(speedsu16[2]);
         self.bl.set_duty(speedsu16[3]);
-    }
-    #[inline(always)]
-    fn theta_from_dt(&mut self, reading: ([f32; 3], u64)) {
-        let dt: f32 = ((reading.1 - self.prevgyr) as f32) / 1000000.0;
-        self.theta[0] += dt * (reading.0[0] - self.mu_theta[0]);
-        self.theta[1] += dt * (reading.0[1] - self.mu_theta[1]);
-        self.theta[2] += dt * (reading.0[2] - self.mu_theta[2]);
-        self.prevgyr = reading.1;
-    }
-    #[inline(always)]
-    fn p_from_da(&mut self, reading: ([f32; 3], u64)) {
-        let dt: f32 = ((reading.1 - self.prevgyr) as f32) / 1000000.0;
-        for i in 0..3 {
-            let a = reading.0[i] - self.mu_a[i];
-            self.a[i] = a;
-            self.v[i] += dt * a;
-            self.p[i] += dt * dt * a * 0.5f32 + self.v[i] * dt;
-        }
-        self.prevgyr = reading.1;
     }
     fn core1_task(
         //read from stuff and update states
