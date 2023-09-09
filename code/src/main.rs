@@ -4,6 +4,9 @@
 mod control;
 mod math;
 mod sensors;
+use crate::sensors::imu::Accelerometer;
+
+use crate::sensors::imu::Gyroscope;
 use control::radio::Radio;
 use control::FlightSystem;
 use core::fmt::Write;
@@ -15,7 +18,7 @@ use hal::Clock;
 use panic_probe as _;
 use rp2040_hal as hal;
 use rp2040_hal::multicore::Multicore;
-use sensors::imu::ICM_20948;
+use sensors::imu::{Sensor, ICM_20948};
 
 #[link_section = ".boot2"]
 #[used]
