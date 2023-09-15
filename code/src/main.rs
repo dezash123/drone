@@ -5,13 +5,13 @@ mod control;
 mod math;
 mod sensors;
 use crate::sensors::imu::Accelerometer;
-
 use crate::sensors::imu::Gyroscope;
 use control::radio::Radio;
 use control::FlightSystem;
 use core::fmt::Write;
 use defmt::*;
 use defmt_rtt as _;
+use embedded_hal::PwmPin;
 use hal::pac;
 use hal::pwm::Slices;
 use hal::Clock;
@@ -60,9 +60,9 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
     let mut radio = Radio::new(
-        pac.UART0,
-        pins.gpio16.into_mode(),
-        pins.gpio17.into_mode(),
+        pac.UART1,
+        pins.gpio4.into_mode(),
+        pins.gpio5.into_mode(),
         &mut pac.RESETS,
         clocks.peripheral_clock.freq(),
     );
@@ -70,13 +70,22 @@ fn main() -> ! {
     let mut p1 = slices.pwm1;
     let mut p2 = slices.pwm2;
     let mut p3 = slices.pwm3;
-    let pwm_ratio: u8 = (clocks.system_clock.freq().raw() / MOTOR_HZ)
-        .try_into()
-        .unwrap();
-    p0.set_div_int(pwm_ratio);
-    p1.set_div_int(pwm_ratio);
-    p2.set_div_int(pwm_ratio);
-    p3.set_div_int(pwm_ratio);
+    // standard 1-2 ms pwm
+    let pwm_int: u8 = 4;
+    let pwm_frac: u8 = 12;
+
+    // multishot
+    // let pwm_int: u8 = 0;
+    // let pwm_frac: u8 = 1;
+
+    p0.set_div_int(pwm_int);
+    p1.set_div_int(pwm_int);
+    p2.set_div_int(pwm_int);
+    p3.set_div_int(pwm_int);
+    p0.set_div_frac(pwm_frac);
+    p1.set_div_frac(pwm_frac);
+    p2.set_div_frac(pwm_frac);
+    p3.set_div_frac(pwm_frac);
     p0.enable();
     p1.enable();
     p2.enable();

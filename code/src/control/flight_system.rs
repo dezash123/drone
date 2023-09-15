@@ -39,7 +39,7 @@ pub enum DroneCommand {
 
 static mut CORESTATE: Option<DroneCoreState> = None;
 
-static mut CORE1_STACK: Stack<32768> = Stack::new();
+static mut CORE1_STACK: Stack<8192> = Stack::new();
 
 // arbitrary max values
 const MAX_TWIST: f32 = 10.0; //dps
@@ -48,7 +48,13 @@ const CAL_LENGTH: u32 = 100; //number of cycles
 const IMU_FAILURE_THRESHOLD: u8 = 100;
 const RADIO_TEMPORARY_FAILURE_THRESHOLD: u16 = 100;
 const RADIO_FULL_FAILURE_THRESHOLD: u16 = 2000;
-const MAX_THROTTLE: u16 = 0x00FF;
+// 1-2ms PWM
+const MAX_THROTTLE: u16 = 0xCCCC;
+const MIN_THROTTLE: u16 = 0x6666;
+// "multishot" (30kHz pwm) couldn't get it to work
+// const MAX_THROTTLE: u16 = 50000;
+// const MIN_THROTTLE: u16 = 10000;
+
 const KPX: f32 = 0.0;
 const KIX: f32 = 0.0;
 const KDX: f32 = 0.0;
@@ -60,7 +66,7 @@ const KITWIST: f32 = 0.0;
 const KDTWIST: f32 = 0.0;
 
 //percent difference for manual control
-const MAX_THROTTLE_DIFFERENCE: f32 = 0.3;
+const MAX_THROTTLE_DIFFERENCE: f32 = 0.1;
 
 pub struct FlightSystem {
     fl: Channel<Pwm0, FreeRunning, A>,
@@ -69,7 +75,6 @@ pub struct FlightSystem {
     fr: Channel<Pwm3, FreeRunning, A>,
     mu_theta: [f32; 3],
     mu_a: [f32; 3],
-
     prevgyr: u64,
     prevacc: u64,
     g: f32,
@@ -119,42 +124,23 @@ impl FlightSystem {
         mut radio: Radio,
         core1: &mut Core,
     ) -> ! {
+        // self.set_speeds([1.0; 4]);
+        // delay.delay_ms(4000);
+        // self.set_speeds([0.0; 4]);
+
         imu.init(&mut delay).unwrap();
 
         let initial_command = radio.get_command();
-        let mut sig_theta: [f64; 3] = [0.0, 0.0, 0.0];
-        let mut sig_a: [f64; 3] = [0.0, 0.0, 0.0];
-        imu.update_all(&mut delay, &timer).unwrap();
-        let a = imu.get_acc();
-        self.prevgyr = timer.get_counter().ticks();
-
-        for _ in 0..CAL_LENGTH {
-            imu.update_all(&mut delay, &timer).unwrap();
-            let new_dtheta = imu.get_gyr().0;
-            let new_da = imu.get_acc().0;
-            for i in 0..3 {
-                sig_theta[i] += new_dtheta[i] as f64;
-                sig_a[i] += new_da[i] as f64;
-            }
-        }
-        for i in 0..3 {
-            sig_theta[i] /= CAL_LENGTH as f64;
-            self.mu_theta[i] = sig_theta[i] as f32;
-            sig_a[i] /= CAL_LENGTH as f64;
-            self.mu_a[i] = sig_a[i] as f32;
-        }
-        self.g = cartesian_to_polar_magnitude(self.mu_a);
-        self.prevgyr = imu.get_gyr().1;
-        self.prevacc = imu.get_acc().1;
         unsafe {
             let _clock = CoreStateLock::claim();
             CORESTATE = Some(DroneCoreState {
                 last_input: initial_command,
                 last_acc: imu.get_acc(),
                 last_gyr: imu.get_gyr(),
-                current_command: DroneCommand::NormalControl,
+                current_command: DroneCommand::FallOutOfTheSky,
             })
         }
+        info!("asdf");
         let _core1task = core1.spawn(unsafe { &mut CORE1_STACK.mem }, || {
             Self::core1_task(delay, timer, imu, radio)
         });
@@ -204,10 +190,18 @@ impl FlightSystem {
                 }
                 if newradio {
                     newstate.last_input = radio.get_command();
+                    // info!("{}", newstate.last_input.mode_select);
+                    newstate.current_command = match newstate.last_input.mode_select {
+                        1 => DroneCommand::FullManual,
+                        0 => DroneCommand::Calibrate,
+                        2 => DroneCommand::FallOutOfTheSky,
+                        _ => newstate.current_command,
+                    }
                 }
-                if failed_radio > RADIO_FULL_FAILURE_THRESHOLD {
-                    newstate.current_command = DroneCommand::Land;
-                } else if failed_radio > RADIO_TEMPORARY_FAILURE_THRESHOLD {
+                // if failed_radio > RADIO_FULL_FAILURE_THRESHOLD {
+                //     newstate.current_command = DroneCommand::Land;
+                // } else
+                if failed_radio > RADIO_TEMPORARY_FAILURE_THRESHOLD {
                     newstate.current_command = DroneCommand::FallOutOfTheSky;
                 }
                 let _clock = CoreStateLock::claim();
@@ -234,6 +228,7 @@ impl FlightSystem {
             let tdt = (current_state.last_gyr.1 - self.last_gyr_time) as f32 / 1000000.0;
             self.last_gyr_time = current_state.last_gyr.1;
             let throttle = current_state.last_input.z_throttle;
+            // info!("{}", throttle);
             match current_state.current_command {
                 DroneCommand::FullManual => self.full_manual(current_state.last_input),
                 DroneCommand::NormalControl => {
@@ -248,7 +243,7 @@ impl FlightSystem {
                 DroneCommand::Hover => {
                     self.normal_control(throttle, [0.0; 2], 0.0, a, dtheta, adt, tdt)
                 }
-                DroneCommand::Calibrate => continue,
+                DroneCommand::Calibrate => self.set_speeds([throttle; 4]),
                 _ => self.fall_out_of_the_sky(),
             }
         }
@@ -266,7 +261,7 @@ impl FlightSystem {
     ) {
         let mut new_speeds = [throttle; 4];
         // probably need kalman filter and dtheta influence for v_xy > 0
-        let measured_angle = cartesian_to_polar(a, true);
+        let measured_angle = cartesian_to_polar_theta(a, true);
 
         let error_x = desired_angle[0] - measured_angle[0];
         let error_y = desired_angle[1] - measured_angle[1];
@@ -306,10 +301,10 @@ impl FlightSystem {
     }
 
     fn set_speeds(&mut self, speeds: [f32; 4]) {
-        // clockwise starting at FL
+        // clockwise starting at Front Left
         let mut speedsu16: [u16; 4] = [0; 4]; //inefficient!!
         for i in 0..4 {
-            speedsu16[i] = (speeds[i] * MAX_THROTTLE as f32) as u16;
+            speedsu16[i] = (speeds[i] * (MAX_THROTTLE - MIN_THROTTLE) as f32) as u16 + MIN_THROTTLE;
         }
         self.fl.set_duty(speedsu16[0]);
         self.fr.set_duty(speedsu16[1]);
@@ -319,29 +314,34 @@ impl FlightSystem {
 
     fn full_manual(&mut self, command: RadioCommand) {
         let mut speeds: [f32; 4] = [command.z_throttle; 4];
-        speeds[0] += MAX_THROTTLE_DIFFERENCE * (command.x_throttle + command.y_throttle);
-        speeds[1] += MAX_THROTTLE_DIFFERENCE * (command.x_throttle + command.y_throttle);
-        speeds[2] += MAX_THROTTLE_DIFFERENCE * (command.x_throttle + command.y_throttle);
-        speeds[3] += MAX_THROTTLE_DIFFERENCE * (command.x_throttle + command.y_throttle);
-        // i dont even remember how this works
-        let max = *speeds
-            .iter()
-            .max_by(|&a, &b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal))
-            .unwrap_or(&0.0);
+
+        speeds[0] += MAX_THROTTLE_DIFFERENCE
+            * (command.x_throttle - command.y_throttle + command.twist_throttle);
+        speeds[1] += MAX_THROTTLE_DIFFERENCE
+            * (-command.x_throttle - command.y_throttle - command.twist_throttle);
+        speeds[2] += MAX_THROTTLE_DIFFERENCE
+            * (-command.x_throttle + command.y_throttle + command.twist_throttle);
+        speeds[3] += MAX_THROTTLE_DIFFERENCE
+            * (command.x_throttle + command.y_throttle - command.twist_throttle);
+        let mut max = speeds[0];
+        for i in 1..4 {
+            if speeds[i] > max {
+                max = speeds[i];
+            }
+        }
         if max == 0.0 {
             self.set_speeds([0.0; 4]);
-        } else {
+        } else if max > 1.0 {
             for i in 0..4 {
                 speeds[i] /= max;
             }
             self.set_speeds(speeds);
+        } else {
+            self.set_speeds(speeds);
         }
     }
 
-    fn fall_out_of_the_sky(&mut self) -> ! {
+    fn fall_out_of_the_sky(&mut self) {
         self.set_speeds([0.0; 4]);
-        loop {
-            panic!("AAAAAAaaAAAAAAAaAAaa");
-        }
     }
 }

@@ -19,15 +19,39 @@ pub fn cartesian_to_polar_magnitude<const N: usize>(cart: [f32; N]) -> f32 {
     }
     libm::sqrtf(mag)
 }
-
+// ik this is a weird implementation but it makes stuff make sense
 #[inline(always)]
 pub fn cartesian_to_polar_theta<const N: usize>(cart: [f32; N], degrees: bool) -> [f32; N - 1] {
     let mut theta = [0.0; N - 1];
     for i in 0..N - 1 {
-        theta[i] = libm::atan2f(cart[i], cart[N - 1]);
+        theta[N - 2 - i] = -libm::atan2f(cart[i], cart[N - 1]);
         if degrees {
-            theta[i] *= RAD2DEGF;
+            theta[N - 2 - i] *= RAD2DEGF;
         }
     }
     theta
+}
+
+pub struct PD {
+    pub kP: f32,
+    pub kD: f32,
+    last_error: f32,
+}
+
+impl PD {
+    pub fn get_next(&mut self, error: f32, dt: f32) -> f32 {
+        
+    }
+}
+
+pub struct PID {
+    pub pd: PD,
+    pub kI: f32,
+    integral: f32,
+}
+
+impl PID {
+    pub fn get_next(&mut self, error: f32, dt: f32) -> f32 {
+        self.integral += 
+    }
 }
