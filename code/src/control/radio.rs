@@ -1,5 +1,6 @@
 // FlySky iA6B ibus interface
 // only rx for now
+// TODO: program will freeze if radio is physically disconnected; should crash (very bad)
 use cortex_m::prelude::_embedded_hal_serial_Read;
 use defmt::info;
 use defmt::Format;
