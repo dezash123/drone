@@ -253,7 +253,7 @@ impl FlightSystem {
         let error_y = desired_angle[1] - measured_angle[1];
         let error_wz = desired_wz + w[2]; // it was the wrong way so add??
 
-        self.zpd.k_d = tuner;
+        self.zpd.k_d = tuner * 100.0;
 
         let x = if error_x > 1.0 || error_x < -1.0 {
             self.xpd.get_next(error_x, adt)
@@ -265,7 +265,7 @@ impl FlightSystem {
         } else {
             0.0
         };
-        let z = if error_wz > 1.0 || error_wz < -1.0 {
+        let z = if error_wz > 0.0 || error_wz < 1.0 {
             self.zpd.get_next(error_wz, tdt)
         } else {
             0.0
