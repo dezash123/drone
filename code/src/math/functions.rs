@@ -163,3 +163,23 @@ impl KalmanFilter {
         self.p[1][1] -= k[1] * p01_temp;
     }
 }
+
+pub struct ComplementaryFilter2 {
+    last_value: f32,
+    weights: [f32; 2],
+}
+
+impl ComplementaryFilter {
+    pub fn new(weights: [f32; 2]) -> Self {
+        Self {
+            0.0,
+            0.0,
+            weights,
+        }
+    }
+    pub fn push(x: f32, v: f32, dt: f32) {
+        self.last_value = weights[0] * x + weights[1] * (last_value + v * dt);
+    }
+    pub fn get
+}
+        
