@@ -177,9 +177,9 @@ impl ComplementaryFilter {
             weights,
         }
     }
-    pub fn push(x: f32, v: f32, dt: f32) {
+    pub fn get(x: f32, v: f32, dt: f32) -> f32 {
         self.last_value = weights[0] * x + weights[1] * (last_value + v * dt);
+        self.last_value
     }
-    pub fn get
 }
         
