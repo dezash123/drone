@@ -15,20 +15,12 @@ use rp2040_hal as hal;
 
 pub trait Accelerometer {
     fn get_acc(&self) -> ([f32; 3], u64);
-    fn update_raw_acc(
-        &mut self,
-        delay: &mut cortex_m::delay::Delay,
-        timer: &hal::Timer,
-    ) -> Result<(), IMUError>;
+    fn update_raw_acc(&mut self, timer: &hal::Timer) -> Result<(), IMUError>;
 }
 
 pub trait Gyroscope {
     fn get_gyr(&self) -> ([f32; 3], u64);
-    fn update_raw_gyr(
-        &mut self,
-        delay: &mut cortex_m::delay::Delay,
-        timer: &hal::Timer,
-    ) -> Result<(), IMUError>;
+    fn update_raw_gyr(&mut self, timer: &hal::Timer) -> Result<(), IMUError>;
 }
 
 pub trait TemperatureSensor {
@@ -144,9 +136,8 @@ const I2C_SLV0_CTRL: u8 = 0x05;
 const I2C_SLV0_DO: u8 = 0x06;
 const EXT_SLV_SENS_DATA_00: u8 = 0x3B;
 
-const GYRO_SMPLRT_DIV: u8 = 0x00;
+const GYRO_SR8_DIV: u8 = 0x00;
 const GYRO_CONFIG_1: u8 = 0x01;
-const GYRO_CONFIG_2: u8 = 0x02;
 
 const WHO_AM_I: u8 = 0x00;
 const USER_CTRL: u8 = 0x03;
@@ -187,8 +178,8 @@ const MAG_CNTL2_MODE_CONT4: u8 = 8;
 const MAG_CNTL2_MODE_TEST: u8 = 16;
 const MAG_CNTL3: u8 = 0x32;
 
-const ACC_DIV: f32 = 1.0 / 2048.0;
-const GYR_DIV: f32 = 1.0 / 138.0;
+const ACC_DIV: f32 = 4.0 * 9.81 / 32767.0;
+const GYR_DIV: f32 = 250.0 / 32767.0;
 
 pub struct ICM_20948 {
     bank: u8,
@@ -233,32 +224,42 @@ impl ICM_20948 {
     }
 
     pub fn init(&mut self, delay: &mut cortex_m::delay::Delay) -> Result<(), IMUError> {
-        delay.delay_ms(1000);
-        self.switch_bank(0, delay)?;
-        self.imu_write(PWR_MGMT_1, 0x80, delay)?; // reset
+        delay.delay_ms(100);
+        self.switch_bank(0)?;
+        self.imu_write(PWR_MGMT_1, 0x80)?; // reset
         delay.delay_ms(10);
         if self.imu_read(WHO_AM_I)? != CHIP_ID {
             return Err(IMUError::SetupError("IMU not found!!!"));
         }
 
-        self.imu_write(PWR_MGMT_1, 0x01, delay)?; // select best clock
-        self.imu_write(PWR_MGMT_2, 0x00, delay)?; // enable gyro and accelerometer
+        self.imu_write(PWR_MGMT_1, 0x01)?; // select best clock
+        self.imu_write(PWR_MGMT_2, 0x00)?; // enable gyro and accelerometer
 
-        self.switch_bank(2, delay)?;
-        self.set_gyro_srate(100.0, delay)?;
-        self.set_gyro_low_pass(true, 5, delay)?;
-        self.set_gyro_full_scale(250, delay)?;
+        self.switch_bank(2)?;
+        // chatgpt said these were good values for NBW
+        self.imu_write(GYRO_SR8_DIV, 0x00)?;
+        // f = 1.125 kHz / (1 + div as u8)
+        self.imu_write(GYRO_CONFIG_1, 0b00_111_00_1)?;
+        // 7:6 resv
+        // 5:3 look at table for NBW, 111 = 375Hz NBW
+        // 00 = +-250, 01 = 500, 10 = 1000, 11 = 2000
+        // 1 = enable low pass
 
-        self.set_acc_srate(125.0, delay)?;
-        self.set_acc_low_pass(true, 5, delay)?;
-        self.set_acc_full_scale(16, delay)?;
+        self.imu_write(ACC_SMPLRT_DIV_1, 0x00)?; // msb
+        self.imu_write(ACC_SMPLRT_DIV_2, 0x00)?;
+        // f = 1.125 kHz / (1 + div as u16)
+        self.imu_write(ACC_CONFIG, 0b00_011_01_1)?;
+        // 7:6 resv
+        // 5:3 look at table for NBW, 011 = 69Hz NBW
+        // 00 = +-2g, 01 = 4, 10 = 8, 11 = 16
+        // 1 = enable low pass
 
-        self.switch_bank(0, delay)?;
-        self.imu_write(INT_PIN_CFG, 0x30, delay)?;
+        self.switch_bank(0)?;
+        self.imu_write(INT_PIN_CFG, 0x30)?;
 
-        self.switch_bank(3, delay)?;
-        self.imu_write(I2C_MST_CTRL, 0x4D, delay)?; // maybe make 0b1001111
-        self.imu_write(I2C_MST_DELAY_CTRL, 0x01, delay)?; // maybe make 0
+        self.switch_bank(3)?;
+        self.imu_write(I2C_MST_CTRL, 0x4D)?; // maybe make 0b1001111
+        self.imu_write(I2C_MST_DELAY_CTRL, 0x01)?; // maybe make 0
 
         if self.mag_read(MAG_WIA, delay)? != MAG_CHIP_ID {
             return Err(IMUError::SetupError("Unable to find magnetometer"));
@@ -272,16 +273,12 @@ impl ICM_20948 {
     }
 
     #[inline(always)]
-    fn switch_bank(
-        &mut self,
-        bank: u8,
-        delay: &mut cortex_m::delay::Delay,
-    ) -> Result<(), IMUError> {
+    fn switch_bank(&mut self, bank: u8) -> Result<(), IMUError> {
         if bank > 3 {
             return Err(IMUError::SyntaxError("invalid bank", bank));
         }
         if bank != self.bank {
-            match self.imu_write(BANK_SEL, bank << 4, delay) {
+            match self.imu_write(BANK_SEL, bank << 4) {
                 Ok(()) => (),
                 Err(e) => {
                     return Err(IMUError::WriteError(
@@ -301,12 +298,7 @@ impl ICM_20948 {
     }
 
     #[inline(always)]
-    fn imu_write(
-        &mut self,
-        register: u8,
-        data: u8,
-        delay: &mut cortex_m::delay::Delay,
-    ) -> Result<(), IMUError> {
+    fn imu_write(&mut self, register: u8, data: u8) -> Result<(), IMUError> {
         let result = match self.i2c.write(IMU_ADDR, &[register, data]) {
             Ok(()) => Ok(()),
             Err(e) => Err(IMUError::WriteError(
@@ -316,7 +308,6 @@ impl ICM_20948 {
                 e,
             )),
         };
-        // delay.delay_us(100);
         result
     }
 
@@ -329,113 +320,14 @@ impl ICM_20948 {
         }
     }
 
-    fn set_gyro_srate(
-        &mut self,
-        rate_hz: f32,
-        delay: &mut cortex_m::delay::Delay,
-    ) -> Result<(), IMUError> {
-        self.switch_bank(2, delay)?;
-        // 125Hz sample rate -> 1.125 kHz / (1 + rate)
-        let rate: u8 = (((1125.0f32 / rate_hz) - 1.0f32).clamp(0.0f32, 255.0f32) + 0.5f32) as u8;
-        self.imu_write(GYRO_SMPLRT_DIV, rate, delay)
-    }
-    fn set_gyro_full_scale(
-        &mut self,
-        scale: u32,
-        delay: &mut cortex_m::delay::Delay,
-    ) -> Result<(), IMUError> {
-        self.switch_bank(2, delay)?;
-        let mut value = self.imu_read(GYRO_CONFIG_1)?;
-        value &= 0b11111001;
-        value |= match scale {
-            250 => 0b00,
-            500 => 0b01,
-            1000 => 0b10,
-            2000 => 0b11,
-            _ => return Err(IMUError::SyntaxError("invalid gyro scale!", scale as u8)),
-        } << 1;
-        self.imu_write(GYRO_CONFIG_1, value, delay)
-    }
-
-    fn set_gyro_low_pass(
-        &mut self,
-        enabled: bool,
-        mode: u8,
-        delay: &mut cortex_m::delay::Delay,
-    ) -> Result<(), IMUError> {
-        if mode > 7 {
-            return Err(IMUError::SyntaxError("invalid gyro low pass mode!!", mode));
-        }
-        self.switch_bank(2, delay)?;
-        let mut buf = self.imu_read(GYRO_CONFIG_1)?;
-        buf &= 0b10001110;
-        if enabled {
-            buf |= 0b1;
-        }
-        buf |= (mode & 0x07) << 4;
-        self.imu_write(GYRO_CONFIG_1, buf, delay)
-    }
-
-    fn set_acc_srate(
-        &mut self,
-        rate_hz: f32,
-        delay: &mut cortex_m::delay::Delay,
-    ) -> Result<(), IMUError> {
-        self.switch_bank(2, delay)?;
-        // 125Hz - 1.125 kHz / (1 + rate)
-        let rate: u16 = (((1125.0f32 / rate_hz) - 1.0f32).clamp(0.0f32, 4095.0f32) + 0.5f32) as u16;
-        let bytes = rate.to_be_bytes();
-        self.imu_write(ACC_SMPLRT_DIV_1, bytes[0], delay)?;
-        self.imu_write(ACC_SMPLRT_DIV_2, bytes[1], delay)
-    }
-
-    fn set_acc_full_scale(
-        &mut self,
-        scale: u8,
-        delay: &mut cortex_m::delay::Delay,
-    ) -> Result<(), IMUError> {
-        self.switch_bank(2, delay)?;
-        let mut value = self.imu_read(ACC_CONFIG)? & 0b11111001;
-        value |= match scale {
-            2 => 0b00,
-            4 => 0b01,
-            8 => 0b10,
-            16 => 0b11,
-            _ => return Err(IMUError::SyntaxError("invalid accelerometer scale!", scale)),
-        } << 1;
-        self.imu_write(ACC_CONFIG, value, delay)
-    }
-
-    fn set_acc_low_pass(
-        &mut self,
-        enabled: bool,
-        mode: u8,
-        delay: &mut cortex_m::delay::Delay,
-    ) -> Result<(), IMUError> {
-        if mode > 7 {
-            return Err(IMUError::SyntaxError(
-                "invalid accelerometer low pass mode!!!",
-                mode,
-            ));
-        }
-        self.switch_bank(2, delay)?;
-        let mut value = self.imu_read(ACC_CONFIG)? & 0b10001110;
-        if enabled {
-            value |= 0b1;
-        }
-        value |= (mode & 0x07) << 4;
-        self.imu_write(ACC_CONFIG, value, delay)
-    }
-
-    //figure out what this all does
     fn mag_ready(&mut self, delay: &mut cortex_m::delay::Delay) -> Result<bool, IMUError> {
         Ok(self.mag_read(MAG_ST1, delay)? & 0x01 > 0)
     }
     fn trigger_mag_io(&mut self, delay: &mut cortex_m::delay::Delay) -> Result<(), IMUError> {
         let user = self.imu_read(USER_CTRL)?;
-        self.imu_write(USER_CTRL, user | 0x20, delay)?;
+        self.imu_write(USER_CTRL, user | 0x20)?;
         delay.delay_ms(5);
-        self.imu_write(USER_CTRL, user, delay)
+        self.imu_write(USER_CTRL, user)
     }
     fn mag_write(
         &mut self,
@@ -443,11 +335,11 @@ impl ICM_20948 {
         data: u8,
         delay: &mut cortex_m::delay::Delay,
     ) -> Result<(), IMUError> {
-        self.switch_bank(3, delay)?;
-        self.imu_write(I2C_SLV0_ADDR, MAG_I2C_ADDR, delay)?;
-        self.imu_write(I2C_SLV0_REG, register, delay)?;
-        self.imu_write(I2C_SLV0_DO, data, delay)?;
-        self.switch_bank(0, delay)?;
+        self.switch_bank(3)?;
+        self.imu_write(I2C_SLV0_ADDR, MAG_I2C_ADDR)?;
+        self.imu_write(I2C_SLV0_REG, register)?;
+        self.imu_write(I2C_SLV0_DO, data)?;
+        self.switch_bank(0)?;
         Ok(self.trigger_mag_io(delay)?)
     }
     fn mag_read(
@@ -455,12 +347,12 @@ impl ICM_20948 {
         register: u8,
         delay: &mut cortex_m::delay::Delay,
     ) -> Result<u8, IMUError> {
-        self.switch_bank(3, delay)?;
-        self.imu_write(I2C_SLV0_ADDR, MAG_I2C_ADDR | 0x80, delay)?;
-        self.imu_write(I2C_SLV0_REG, register, delay)?;
-        self.imu_write(I2C_SLV0_DO, 0xff, delay)?;
-        self.imu_write(I2C_SLV0_CTRL, 0x80 | 1, delay)?; // read 1 byte
-        self.switch_bank(0, delay)?;
+        self.switch_bank(3)?;
+        self.imu_write(I2C_SLV0_ADDR, MAG_I2C_ADDR | 0x80)?;
+        self.imu_write(I2C_SLV0_REG, register)?;
+        self.imu_write(I2C_SLV0_DO, 0xff)?;
+        self.imu_write(I2C_SLV0_CTRL, 0x80 | 1)?; // read 1 byte
+        self.switch_bank(0)?;
         self.trigger_mag_io(delay)?;
         Ok(self.imu_read(EXT_SLV_SENS_DATA_00)?)
     }
@@ -476,16 +368,12 @@ impl ICM_20948 {
             ));
         }
         let mut buf: [u8; length] = [0; length];
-        self.switch_bank(3, delay)?;
-        self.imu_write(
-            I2C_SLV0_CTRL,
-            (0x80 | 0x08 | length).try_into().unwrap(),
-            delay,
-        )?;
-        self.imu_write(I2C_SLV0_ADDR, MAG_I2C_ADDR | 0x80, delay)?;
-        self.imu_write(I2C_SLV0_REG, register, delay)?;
-        self.imu_write(I2C_SLV0_DO, 0xff, delay)?;
-        self.switch_bank(0, delay)?;
+        self.switch_bank(3)?;
+        self.imu_write(I2C_SLV0_CTRL, (0x80 | 0x08 | length).try_into().unwrap())?;
+        self.imu_write(I2C_SLV0_ADDR, MAG_I2C_ADDR | 0x80)?;
+        self.imu_write(I2C_SLV0_REG, register)?;
+        self.imu_write(I2C_SLV0_DO, 0xff)?;
+        self.switch_bank(0)?;
         self.trigger_mag_io(delay)?;
 
         match self
@@ -502,7 +390,7 @@ impl ICM_20948 {
     }
     #[inline]
     pub fn update_raw_temp(&mut self, delay: &mut cortex_m::delay::Delay) -> Result<(), IMUError> {
-        self.switch_bank(0, delay)?;
+        self.switch_bank(0)?;
         match self
             .i2c
             .write_read(IMU_ADDR, &[TEMP_START], &mut self.raw_temp)
@@ -518,12 +406,8 @@ impl ICM_20948 {
 }
 
 impl Accelerometer for ICM_20948 {
-    fn update_raw_acc(
-        &mut self,
-        delay: &mut cortex_m::delay::Delay,
-        timer: &hal::Timer,
-    ) -> Result<(), IMUError> {
-        self.switch_bank(0, delay)?;
+    fn update_raw_acc(&mut self, timer: &hal::Timer) -> Result<(), IMUError> {
+        self.switch_bank(0)?;
         let result = match self
             .i2c
             .write_read(IMU_ADDR, &[ACC_START], &mut self.raw_acc)
@@ -555,12 +439,8 @@ impl Accelerometer for ICM_20948 {
 }
 
 impl Gyroscope for ICM_20948 {
-    fn update_raw_gyr(
-        &mut self,
-        delay: &mut cortex_m::delay::Delay,
-        timer: &hal::Timer,
-    ) -> Result<(), IMUError> {
-        self.switch_bank(0, delay)?;
+    fn update_raw_gyr(&mut self, timer: &hal::Timer) -> Result<(), IMUError> {
+        self.switch_bank(0)?;
         let result = match self
             .i2c
             .write_read(IMU_ADDR, &[GYR_START], &mut self.raw_gyr)
@@ -590,8 +470,8 @@ impl Sensor for ICM_20948 {
         delay: &mut cortex_m::delay::Delay,
         timer: &hal::Timer,
     ) -> Result<(), IMUError> {
-        self.update_raw_acc(delay, timer)?;
-        self.update_raw_gyr(delay, timer)?;
+        self.update_raw_acc(timer)?;
+        self.update_raw_gyr(timer)?;
         Ok(())
     }
 }
@@ -689,18 +569,14 @@ impl Accelerometer for MPU_6050 {
         // meters per sec
         (
             [
-                f32::from(i16::from_be_bytes([self.raw_acc[0], self.raw_acc[1]])) / MPU_ACC_DIV,
-                f32::from(i16::from_be_bytes([self.raw_acc[2], self.raw_acc[3]])) / MPU_ACC_DIV,
-                f32::from(i16::from_be_bytes([self.raw_acc[4], self.raw_acc[5]])) / MPU_ACC_DIV,
+                f32::from(i16::from_be_bytes([self.raw_acc[0], self.raw_acc[1]])) * MPU_ACC_DIV,
+                f32::from(i16::from_be_bytes([self.raw_acc[2], self.raw_acc[3]])) * MPU_ACC_DIV,
+                f32::from(i16::from_be_bytes([self.raw_acc[4], self.raw_acc[5]])) * MPU_ACC_DIV,
             ],
             self.last_acc,
         )
     }
-    fn update_raw_acc(
-        &mut self,
-        delay: &mut cortex_m::delay::Delay,
-        timer: &hal::Timer,
-    ) -> Result<(), IMUError> {
+    fn update_raw_acc(&mut self, timer: &hal::Timer) -> Result<(), IMUError> {
         match self
             .i2c
             .write_read(MPU_ADDR, &[MPU_ACC_START], &mut self.raw_acc)
@@ -715,7 +591,6 @@ impl Accelerometer for MPU_6050 {
             }
         };
         self.last_acc = timer.get_counter().ticks();
-        //delay.delay_us(100);
         Ok(())
     }
 }
@@ -725,18 +600,14 @@ impl Gyroscope for MPU_6050 {
         // degrees per sec
         (
             [
-                f32::from(i16::from_be_bytes([self.raw_gyr[0], self.raw_gyr[1]])) / MPU_GYR_DIV,
-                f32::from(i16::from_be_bytes([self.raw_gyr[2], self.raw_gyr[3]])) / MPU_GYR_DIV,
-                f32::from(i16::from_be_bytes([self.raw_gyr[4], self.raw_gyr[5]])) / MPU_GYR_DIV,
+                f32::from(i16::from_be_bytes([self.raw_gyr[0], self.raw_gyr[1]])) * MPU_GYR_DIV,
+                f32::from(i16::from_be_bytes([self.raw_gyr[2], self.raw_gyr[3]])) * MPU_GYR_DIV,
+                f32::from(i16::from_be_bytes([self.raw_gyr[4], self.raw_gyr[5]])) * MPU_GYR_DIV,
             ],
             self.last_gyr,
         )
     }
-    fn update_raw_gyr(
-        &mut self,
-        delay: &mut cortex_m::delay::Delay,
-        timer: &hal::Timer,
-    ) -> Result<(), IMUError> {
+    fn update_raw_gyr(&mut self, timer: &hal::Timer) -> Result<(), IMUError> {
         match self
             .i2c
             .write_read(MPU_ADDR, &[MPU_GYR_START], &mut self.raw_gyr)
@@ -746,7 +617,6 @@ impl Gyroscope for MPU_6050 {
         };
 
         self.last_gyr = timer.get_counter().ticks();
-        delay.delay_us(100);
         Ok(())
     }
 }
@@ -757,7 +627,7 @@ impl Sensor for MPU_6050 {
         delay: &mut cortex_m::delay::Delay,
         timer: &hal::Timer,
     ) -> Result<(), IMUError> {
-        self.update_raw_acc(delay, timer)?;
-        self.update_raw_gyr(delay, timer)
+        self.update_raw_acc(timer)?;
+        self.update_raw_gyr(timer)
     }
 }

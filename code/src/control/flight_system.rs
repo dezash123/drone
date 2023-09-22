@@ -1,6 +1,6 @@
 use crate::control::radio::{Radio, RadioCommand};
 use crate::math::functions::{
-    cartesian_to_polar, cartesian_to_polar_magnitude, cartesian_to_polar_theta, PD, PID,
+    cartesian_to_polar, cartesian_to_polar_magnitude, cartesian_to_polar_theta, PD, PID, KalmanFilter,
 };
 use crate::sensors::imu::ICM_20948;
 use crate::sensors::imu::{Accelerometer, Gyroscope, Sensor};
@@ -11,7 +11,6 @@ use embedded_hal::PwmPin;
 use hal::pwm::{Channel, FreeRunning, Pwm0, Pwm1, Pwm2, Pwm3, A};
 use hal::sio::Spinlock0 as CoreStateLock;
 
-// i could use intercore fifo but im too lazy
 use hal::multicore::{Core, Stack};
 use rp2040_hal as hal;
 
@@ -78,6 +77,8 @@ pub struct FlightSystem {
     xpd: PD,
     ypd: PD,
     zpd: PD,
+    x_filter: 
+    w_offs: [f32; 3],
 }
 
 impl FlightSystem {
@@ -95,6 +96,7 @@ impl FlightSystem {
             xpd: PD::new(KPX, KDX),
             ypd: PD::new(KPY, KDY),
             zpd: PD::new(KPZ, KDZ),
+            w_offs: [0.0; 3],
         }
     }
 
@@ -141,6 +143,8 @@ impl FlightSystem {
         let mut failed_radio: u16 = 0;
         let mut newimu = false;
         let mut newradio = false;
+        let radio_div: u8 = 6;
+        let mut count: u8 = 1;
         loop {
             newimu = match imu.update_all(&mut delay, &timer) {
                 Ok(()) => {
@@ -153,23 +157,30 @@ impl FlightSystem {
                     false
                 }
             };
-            newradio = match radio.read() {
-                Ok(()) => {
-                    failed_radio = 0;
-                    true
-                }
-                Err(e) => {
-                    failed_radio += 0;
-                    false
-                }
-            };
+            if count == radio_div {
+                count = 1;
+                newradio = match radio.read() {
+                    Ok(()) => {
+                        failed_radio = 0;
+                        true
+                    }
+                    Err(e) => {
+                        failed_radio += 0;
+                        false
+                    }
+                };
+            } else {
+                count += 1;
+            }
             unsafe {
                 let mut newstate = CORESTATE.clone().unwrap();
                 if newimu {
-                    newstate.last_acc = imu.get_acc().0;
-                    newstate.last_gyr = imu.get_gyr().0;
-                    newstate.adt = [newstate.adt[1], imu.get_acc().1];
-                    newstate.tdt = [newstate.tdt[1], imu.get_gyr().1];
+                    let acc = imu.get_acc();
+                    let gyr = imu.get_gyr();
+                    newstate.last_acc = acc.0;
+                    newstate.last_gyr = gyr.0;
+                    newstate.adt = [newstate.adt[1], acc.1];
+                    newstate.tdt = [newstate.tdt[1], gyr.1];
                 } else if failed_imu > IMU_FAILURE_THRESHOLD {
                     newstate.current_command = DroneCommand::FallOutOfTheSky;
                 }
@@ -185,9 +196,9 @@ impl FlightSystem {
                 // if failed_radio > RADIO_FULL_FAILURE_THRESHOLD {
                 //     newstate.current_command = DroneCommand::Land;
                 // } else
-                if failed_radio > RADIO_TEMPORARY_FAILURE_THRESHOLD {
-                    newstate.current_command = DroneCommand::FallOutOfTheSky;
-                }
+                // if failed_radio > RADIO_TEMPORARY_FAILURE_THRESHOLD {
+                //     newstate.current_command = DroneCommand::FallOutOfTheSky;
+                // }
                 let _clock = CoreStateLock::claim();
                 CORESTATE = Some(newstate);
             }
@@ -195,6 +206,16 @@ impl FlightSystem {
     }
 
     fn core0_task(&mut self) -> ! {
+        let mut theta = 0.0;
+        // for i in 0..CAL_LENGTH {
+        //     let mut current_state = None;
+        //     unsafe {
+        //         let _clock = CoreStateLock::claim();
+        //         current_state = CORESTATE.clone();
+        //         let current_state = current_state.unwrap();
+        //     }
+
+        // }
         loop {
             let mut current_state = None;
             unsafe {
@@ -204,8 +225,11 @@ impl FlightSystem {
             let current_state = current_state.unwrap();
             let a = current_state.last_acc;
             let w = current_state.last_gyr;
-            let adt = (current_state.last_acc[1] - current_state.last_acc[0]) as f32 / 1000000.0;
-            let tdt = (current_state.last_gyr[1] - current_state.last_acc[0]) as f32 / 1000000.0;
+            let adt = (current_state.adt[1] - current_state.adt[0]) as f32 / 1000000.0;
+            let tdt = (current_state.tdt[1] - current_state.tdt[0]) as f32 / 1000000.0;
+            theta += w[2] * tdt;
+            info!("{:#?}", theta);
+            // info!("{}Hz", 1.0 / tdt);
             let throttle = current_state.last_input.z_throttle;
             let aux = current_state.last_input.aux;
             // info!("{}", throttle);
@@ -242,7 +266,7 @@ impl FlightSystem {
     ) {
         // start .0001 go factors of 10 for kd
         // start 1 for kp factors of 10
-
+        // this was bad advice ^ lol
         let tuner = aux;
 
         let mut new_speeds = [throttle; 4];

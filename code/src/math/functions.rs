@@ -115,7 +115,7 @@ impl PID {
     }
 }
 
-struct KalmanFilter {
+pub struct KalmanFilter {
     pub x: f32,
     bias: f32,
     q_x: f32,
