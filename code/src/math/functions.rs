@@ -1,3 +1,5 @@
+use defmt::info;
+use defmt::Format;
 use libm;
 pub const PI: f64 = 3.141592653589793238462643383279506939937;
 pub const RAD2DEGF: f32 = 180.0 / PI as f32;
@@ -164,22 +166,90 @@ impl KalmanFilter {
     }
 }
 
-pub struct ComplementaryFilter2 {
-    last_value: f32,
-    weights: [f32; 2],
+pub struct ComplementaryFilter {
+    pub last_value: f32,
+    pub x_weight: f32,
 }
 
 impl ComplementaryFilter {
-    pub fn new(weights: [f32; 2]) -> Self {
+    pub fn new(x_weight: f32) -> Self {
         Self {
-            0.0,
-            0.0,
-            weights,
+            last_value: 0.0,
+            x_weight,
         }
     }
-    pub fn get(x: f32, v: f32, dt: f32) -> f32 {
-        self.last_value = weights[0] * x + weights[1] * (last_value + v * dt);
+    pub fn get(&mut self, x: f32, v: f32, dt: f32) -> f32 {
+        self.last_value = self.x_weight * x + (1.0 - self.x_weight) * (self.last_value + v * dt);
         self.last_value
     }
 }
-        
+
+// useful for calibrating constants
+pub struct MaxOverN<const N: usize> {
+    last_n: [f32; N],
+    position: usize,
+}
+
+impl<const N: usize> MaxOverN<N> {
+    pub fn new() -> Self {
+        Self {
+            last_n: [0.0; N],
+            position: 0,
+        }
+    }
+    pub fn get(&mut self, new: f32) -> f32 {
+        self.last_n[self.position] = new;
+        self.position += 1;
+        self.position %= N;
+        let mut max = self.last_n[0];
+        for i in self.last_n {
+            if i > max {
+                max = i
+            };
+        }
+        max
+    }
+}
+
+pub struct GyroFilter {
+    pub max_a: f32,
+    pub max_error: f32,
+    pub a_weight: f32,
+    pub last_value: [f32; 2],
+    pub g_measured2g_true: f32,
+}
+
+impl GyroFilter {
+    pub fn new(max_a: f32, max_error: f32, a_weight: f32) -> Self {
+        Self {
+            max_a,
+            max_error,
+            a_weight,
+            last_value: [0.0; 2],
+            g_measured2g_true: 1.0,
+        }
+    }
+    pub fn push(&mut self, a: [f32; 3], w: [f32; 3], dt: f32) {
+        let a_theta = cartesian_to_polar_theta(a, true);
+        let a_mag = cartesian_to_polar_magnitude(a) * self.g_measured2g_true;
+        let g_theta = [
+            self.last_value[0] + w[0] * dt,
+            self.last_value[1] + w[1] * dt,
+        ];
+        let error = [a_theta[0] - g_theta[0], a_theta[1] - g_theta[1]];
+        self.last_value = if a[2] == 0.0
+            || cartesian_to_polar_magnitude(error) < self.max_error
+            || a_mag > self.max_a
+        {
+            g_theta
+        } else {
+            let g_weight = 1.0 - self.a_weight;
+
+            info!("asdfasdfafdasdfasdfa");
+            [
+                self.a_weight * a_theta[0] + g_weight * g_theta[0],
+                self.a_weight * a_theta[1] + g_weight * g_theta[1],
+            ]
+        }
+    }
+}

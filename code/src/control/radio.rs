@@ -1,6 +1,6 @@
 // FlySky iA6B ibus interface
 // only rx for now
-// TODO: program will freeze if radio is physically disconnected; should crash (very bad)
+// TODO: program will freeze if radio is disconnected; should crash (very bad)
 use cortex_m::prelude::_embedded_hal_serial_Read;
 use defmt::info;
 use defmt::Format;
@@ -17,10 +17,12 @@ use rp2040_hal as hal;
 pub enum RadioError {
     ChecksumError,
     ReadError(Option<hal::uart::ReadErrorType>),
+    NoNewData,
 }
 
 pub struct Radio {
-    reader: Reader<
+    uart: UartPeripheral<
+        hal::uart::Enabled,
         pac::UART1,
         (
             Pin<Gpio4, Function<hal::gpio::Uart>>,
@@ -38,6 +40,7 @@ impl Radio {
         resets: &mut pac::RESETS,
         peripheral_clock_freq: fugit::HertzU32,
     ) -> Self {
+        // language server = dumb because this works
         let mut uart = UartPeripheral::new(uart, (mosi, miso), resets)
             .enable(
                 UartConfig::new(115200.Hz(), DataBits::Eight, None, StopBits::One),
@@ -45,23 +48,26 @@ impl Radio {
             )
             .unwrap();
         uart.set_fifos(true);
-        Self {
-            reader: uart.split().0,
-            buf: [0; 31],
-        }
+        Self { uart, buf: [0; 31] }
     }
     pub fn read(&mut self) -> Result<(), RadioError> {
         let mut newdata: [u8; 31] = [0; 31];
-        let first = match nb::block!(self.reader.read()) {
+        // if self.uart.uart_is_readable() {
+        let mut first = match nb::block!(self.uart.read()) {
             Ok(n) => n,
             Err(e) => {
                 return Err(RadioError::ReadError(Some(e)));
             }
         };
-        if first != 0x20 {
-            return Err(RadioError::ReadError(None));
+        while first != 0x20 {
+            first = match nb::block!(self.uart.read()) {
+                Ok(n) => n,
+                Err(e) => {
+                    return Err(RadioError::ReadError(Some(e)));
+                }
+            }
         }
-        match self.reader.read_full_blocking(&mut newdata) {
+        match self.uart.read_full_blocking(&mut newdata) {
             Ok(()) => (),
             Err(e) => return Err(RadioError::ReadError(Some(e))),
         };
@@ -73,7 +79,10 @@ impl Radio {
             return Err(RadioError::ChecksumError);
         }
         self.buf = newdata;
-        return Ok(());
+        Ok(())
+        // } else {
+        //     Err(RadioError::NoNewData)
+        // }
     }
     #[inline(always)]
     pub fn get_command(&self) -> RadioCommand {

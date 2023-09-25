@@ -14,13 +14,13 @@ use panic_probe as _;
 use rp2040_hal as hal;
 
 pub trait Accelerometer {
-    fn get_acc(&self) -> ([f32; 3], u64);
-    fn update_raw_acc(&mut self, timer: &hal::Timer) -> Result<(), IMUError>;
+    fn get_acc(&self) -> [f32; 3];
+    fn update_raw_acc(&mut self) -> Result<(), IMUError>;
 }
 
 pub trait Gyroscope {
-    fn get_gyr(&self) -> ([f32; 3], u64);
-    fn update_raw_gyr(&mut self, timer: &hal::Timer) -> Result<(), IMUError>;
+    fn get_gyr(&self) -> [f32; 3];
+    fn update_raw_gyr(&mut self) -> Result<(), IMUError>;
 }
 
 pub trait TemperatureSensor {
@@ -34,11 +34,7 @@ pub trait Magnetometer {
 }
 
 pub trait Sensor {
-    fn update_all(
-        &mut self,
-        delay: &mut cortex_m::delay::Delay,
-        timer: &hal::Timer,
-    ) -> Result<(), IMUError>;
+    fn update_all(&mut self, delay: &mut cortex_m::delay::Delay) -> Result<(), IMUError>;
 }
 #[derive(Debug)]
 pub enum IMUHardwareType {
@@ -178,8 +174,8 @@ const MAG_CNTL2_MODE_CONT4: u8 = 8;
 const MAG_CNTL2_MODE_TEST: u8 = 16;
 const MAG_CNTL3: u8 = 0x32;
 
-const ACC_DIV: f32 = 4.0 * 9.81 / 32767.0;
-const GYR_DIV: f32 = 250.0 / 32767.0;
+const ACC_DIV: f32 = 4.0 / 32768.0;
+const GYR_DIV: f32 = 250.0 / 32768.0;
 
 pub struct ICM_20948 {
     bank: u8,
@@ -242,8 +238,8 @@ impl ICM_20948 {
         self.imu_write(GYRO_CONFIG_1, 0b00_111_00_1)?;
         // 7:6 resv
         // 5:3 look at table for NBW, 111 = 375Hz NBW
-        // 00 = +-250, 01 = 500, 10 = 1000, 11 = 2000
-        // 1 = enable low pass
+        // 2:1 00 = +-250, 01 = 500, 10 = 1000, 11 = 2000
+        // 0   1 = enable low pass
 
         self.imu_write(ACC_SMPLRT_DIV_1, 0x00)?; // msb
         self.imu_write(ACC_SMPLRT_DIV_2, 0x00)?;
@@ -251,8 +247,8 @@ impl ICM_20948 {
         self.imu_write(ACC_CONFIG, 0b00_011_01_1)?;
         // 7:6 resv
         // 5:3 look at table for NBW, 011 = 69Hz NBW
-        // 00 = +-2g, 01 = 4, 10 = 8, 11 = 16
-        // 1 = enable low pass
+        // 2:1 00 = +-2g, 01 = 4, 10 = 8, 11 = 16
+        // 0   1 = enable low pass
 
         self.switch_bank(0)?;
         self.imu_write(INT_PIN_CFG, 0x30)?;
@@ -406,7 +402,7 @@ impl ICM_20948 {
 }
 
 impl Accelerometer for ICM_20948 {
-    fn update_raw_acc(&mut self, timer: &hal::Timer) -> Result<(), IMUError> {
+    fn update_raw_acc(&mut self) -> Result<(), IMUError> {
         self.switch_bank(0)?;
         let result = match self
             .i2c
@@ -421,25 +417,21 @@ impl Accelerometer for ICM_20948 {
                 ))
             }
         };
-        self.last_acc = timer.get_counter().ticks();
         // delay.delay_us(100);
         result
     }
-    fn get_acc(&self) -> ([f32; 3], u64) {
+    fn get_acc(&self) -> [f32; 3] {
         // meters per sec
-        (
-            [
-                f32::from(i16::from_be_bytes([self.raw_acc[0], self.raw_acc[1]])) * ACC_DIV,
-                f32::from(i16::from_be_bytes([self.raw_acc[2], self.raw_acc[3]])) * ACC_DIV,
-                f32::from(i16::from_be_bytes([self.raw_acc[4], self.raw_acc[5]])) * ACC_DIV,
-            ],
-            self.last_acc,
-        )
+        [
+            f32::from(i16::from_be_bytes([self.raw_acc[0], self.raw_acc[1]])) * ACC_DIV,
+            f32::from(i16::from_be_bytes([self.raw_acc[2], self.raw_acc[3]])) * ACC_DIV,
+            f32::from(i16::from_be_bytes([self.raw_acc[4], self.raw_acc[5]])) * ACC_DIV,
+        ]
     }
 }
 
 impl Gyroscope for ICM_20948 {
-    fn update_raw_gyr(&mut self, timer: &hal::Timer) -> Result<(), IMUError> {
+    fn update_raw_gyr(&mut self) -> Result<(), IMUError> {
         self.switch_bank(0)?;
         let result = match self
             .i2c
@@ -448,31 +440,22 @@ impl Gyroscope for ICM_20948 {
             Ok(()) => Ok(()),
             Err(e) => return Err(IMUError::ReadError(IMUHardwareType::Gyro, GYR_START, e)),
         };
-        self.last_gyr = timer.get_counter().ticks();
         // delay.delay_us(100);
         result
     }
-    fn get_gyr(&self) -> ([f32; 3], u64) {
+    fn get_gyr(&self) -> [f32; 3] {
         // degrees per sec
-        (
-            [
-                f32::from(i16::from_be_bytes([self.raw_gyr[0], self.raw_gyr[1]])) * GYR_DIV,
-                f32::from(i16::from_be_bytes([self.raw_gyr[2], self.raw_gyr[3]])) * GYR_DIV,
-                f32::from(i16::from_be_bytes([self.raw_gyr[4], self.raw_gyr[5]])) * GYR_DIV,
-            ],
-            self.last_gyr,
-        )
+        [
+            f32::from(i16::from_be_bytes([self.raw_gyr[0], self.raw_gyr[1]])) * GYR_DIV,
+            f32::from(i16::from_be_bytes([self.raw_gyr[2], self.raw_gyr[3]])) * GYR_DIV,
+            f32::from(i16::from_be_bytes([self.raw_gyr[4], self.raw_gyr[5]])) * GYR_DIV,
+        ]
     }
 }
 impl Sensor for ICM_20948 {
-    fn update_all(
-        &mut self,
-        delay: &mut cortex_m::delay::Delay,
-        timer: &hal::Timer,
-    ) -> Result<(), IMUError> {
-        self.update_raw_acc(timer)?;
-        self.update_raw_gyr(timer)?;
-        Ok(())
+    fn update_all(&mut self, delay: &mut cortex_m::delay::Delay) -> Result<(), IMUError> {
+        self.update_raw_acc()?;
+        self.update_raw_gyr()
     }
 }
 
@@ -565,18 +548,15 @@ impl MPU_6050 {
 }
 
 impl Accelerometer for MPU_6050 {
-    fn get_acc(&self) -> ([f32; 3], u64) {
+    fn get_acc(&self) -> [f32; 3] {
         // meters per sec
-        (
-            [
-                f32::from(i16::from_be_bytes([self.raw_acc[0], self.raw_acc[1]])) * MPU_ACC_DIV,
-                f32::from(i16::from_be_bytes([self.raw_acc[2], self.raw_acc[3]])) * MPU_ACC_DIV,
-                f32::from(i16::from_be_bytes([self.raw_acc[4], self.raw_acc[5]])) * MPU_ACC_DIV,
-            ],
-            self.last_acc,
-        )
+        [
+            f32::from(i16::from_be_bytes([self.raw_acc[0], self.raw_acc[1]])) * MPU_ACC_DIV,
+            f32::from(i16::from_be_bytes([self.raw_acc[2], self.raw_acc[3]])) * MPU_ACC_DIV,
+            f32::from(i16::from_be_bytes([self.raw_acc[4], self.raw_acc[5]])) * MPU_ACC_DIV,
+        ]
     }
-    fn update_raw_acc(&mut self, timer: &hal::Timer) -> Result<(), IMUError> {
+    fn update_raw_acc(&mut self) -> Result<(), IMUError> {
         match self
             .i2c
             .write_read(MPU_ADDR, &[MPU_ACC_START], &mut self.raw_acc)
@@ -590,24 +570,20 @@ impl Accelerometer for MPU_6050 {
                 ))
             }
         };
-        self.last_acc = timer.get_counter().ticks();
         Ok(())
     }
 }
 
 impl Gyroscope for MPU_6050 {
-    fn get_gyr(&self) -> ([f32; 3], u64) {
+    fn get_gyr(&self) -> [f32; 3] {
         // degrees per sec
-        (
-            [
-                f32::from(i16::from_be_bytes([self.raw_gyr[0], self.raw_gyr[1]])) * MPU_GYR_DIV,
-                f32::from(i16::from_be_bytes([self.raw_gyr[2], self.raw_gyr[3]])) * MPU_GYR_DIV,
-                f32::from(i16::from_be_bytes([self.raw_gyr[4], self.raw_gyr[5]])) * MPU_GYR_DIV,
-            ],
-            self.last_gyr,
-        )
+        [
+            f32::from(i16::from_be_bytes([self.raw_gyr[0], self.raw_gyr[1]])) * MPU_GYR_DIV,
+            f32::from(i16::from_be_bytes([self.raw_gyr[2], self.raw_gyr[3]])) * MPU_GYR_DIV,
+            f32::from(i16::from_be_bytes([self.raw_gyr[4], self.raw_gyr[5]])) * MPU_GYR_DIV,
+        ]
     }
-    fn update_raw_gyr(&mut self, timer: &hal::Timer) -> Result<(), IMUError> {
+    fn update_raw_gyr(&mut self) -> Result<(), IMUError> {
         match self
             .i2c
             .write_read(MPU_ADDR, &[MPU_GYR_START], &mut self.raw_gyr)
@@ -616,18 +592,13 @@ impl Gyroscope for MPU_6050 {
             Err(e) => return Err(IMUError::ReadError(IMUHardwareType::Gyro, GYR_START, e)),
         };
 
-        self.last_gyr = timer.get_counter().ticks();
         Ok(())
     }
 }
 
 impl Sensor for MPU_6050 {
-    fn update_all(
-        &mut self,
-        delay: &mut cortex_m::delay::Delay,
-        timer: &hal::Timer,
-    ) -> Result<(), IMUError> {
-        self.update_raw_acc(timer)?;
-        self.update_raw_gyr(timer)
+    fn update_all(&mut self, delay: &mut cortex_m::delay::Delay) -> Result<(), IMUError> {
+        self.update_raw_acc()?;
+        self.update_raw_gyr()
     }
 }

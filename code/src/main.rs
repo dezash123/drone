@@ -101,6 +101,6 @@ fn main() -> ! {
     let mut mc = Multicore::new(&mut pac.PSM, &mut pac.PPB, &mut sio.fifo);
     let cores = mc.cores();
     let core1 = &mut cores[1];
-    let mut flight_system = FlightSystem::new(m0, m1, m2, m3);
-    flight_system.start(delay, timer, imu, radio, core1);
+    let mut flight_system = FlightSystem::new(m0, m1, m2, m3, timer);
+    flight_system.start(delay, imu, radio, core1);
 }

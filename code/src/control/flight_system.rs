@@ -1,7 +1,5 @@
 use crate::control::radio::{Radio, RadioCommand};
-use crate::math::functions::{
-    cartesian_to_polar, cartesian_to_polar_magnitude, cartesian_to_polar_theta, PD, PID, KalmanFilter,
-};
+use crate::math::functions::*;
 use crate::sensors::imu::ICM_20948;
 use crate::sensors::imu::{Accelerometer, Gyroscope, Sensor};
 use core::u16;
@@ -10,28 +8,28 @@ use defmt::Format;
 use embedded_hal::PwmPin;
 use hal::pwm::{Channel, FreeRunning, Pwm0, Pwm1, Pwm2, Pwm3, A};
 use hal::sio::Spinlock0 as CoreStateLock;
+use hal::uart::{ReadError, ReadErrorType};
+use libm::{cosf, powf, roundf};
 
 use hal::multicore::{Core, Stack};
 use rp2040_hal as hal;
+
+use super::radio::RadioError;
 
 #[derive(Clone, Copy, Debug, Format)]
 pub struct DroneCoreState {
     last_input: RadioCommand,
     last_acc: [f32; 3], // x, y, z
-    adt: [u64; 2],      // t_i, t_f
     last_gyr: [f32; 3],
-    tdt: [u64; 2],
     current_command: DroneCommand,
 }
 
 #[derive(Clone, Copy)]
 pub struct DronePeripheralState {}
 
-#[derive(Clone, Copy, Format, Debug)]
+#[derive(Clone, Copy, Format, Debug, PartialEq)]
 pub enum DroneCommand {
-    Hover,
     Land,
-    Takeoff,
     Calibrate,
     FullManual,
     NormalControl,
@@ -45,7 +43,7 @@ static mut CORE1_STACK: Stack<8192> = Stack::new();
 // arbitrary max values
 const MAX_TWIST: f32 = 100.0; //dps
 const MAX_TILT: f32 = 20.0; //degrees
-const CAL_LENGTH: u32 = 100; //number of cycles
+const CAL_LENGTH: u32 = 1000; //number of cycles
 const IMU_FAILURE_THRESHOLD: u8 = 100;
 const RADIO_TEMPORARY_FAILURE_THRESHOLD: u16 = 100;
 const RADIO_FULL_FAILURE_THRESHOLD: u16 = 2000;
@@ -56,6 +54,7 @@ const MIN_THROTTLE: u16 = 0x6666;
 // const MAX_THROTTLE: u16 = 50000;
 // const MIN_THROTTLE: u16 = 10000;
 
+// PIDS!!!!!
 const KPX: f32 = 0.0;
 const KIX: f32 = 0.0;
 const KDX: f32 = 0.0;
@@ -65,6 +64,14 @@ const KDY: f32 = 0.0;
 const KPZ: f32 = 0.06;
 const KIZ: f32 = 0.0;
 const KDZ: f32 = 0.0;
+
+// weight on accelerometer measurements
+const A_WEIGHT: f32 = 0.3;
+
+// instantaneous angle measurement error at which switch to accelerometer trig
+const MAX_THETA_ERROR: f32 = 2.0;
+
+const MAX_XY_A: f32 = 1.07;
 
 //percent difference for manual control
 const MAX_THROTTLE_DIFFERENCE: f32 = 0.1;
@@ -77,8 +84,9 @@ pub struct FlightSystem {
     xpd: PD,
     ypd: PD,
     zpd: PD,
-    x_filter: 
-    w_offs: [f32; 3],
+    gyro_filter: GyroFilter,
+    last_time: u64,
+    timer: hal::Timer,
 }
 
 impl FlightSystem {
@@ -87,6 +95,7 @@ impl FlightSystem {
         bl: Channel<Pwm1, FreeRunning, A>,
         br: Channel<Pwm2, FreeRunning, A>,
         fr: Channel<Pwm3, FreeRunning, A>,
+        timer: hal::timer::Timer,
     ) -> Self {
         Self {
             fl,
@@ -96,21 +105,22 @@ impl FlightSystem {
             xpd: PD::new(KPX, KDX),
             ypd: PD::new(KPY, KDY),
             zpd: PD::new(KPZ, KDZ),
-            w_offs: [0.0; 3],
+            gyro_filter: GyroFilter::new(MAX_XY_A, MAX_THETA_ERROR, A_WEIGHT),
+            last_time: timer.get_counter().ticks(),
+            timer,
         }
     }
 
     pub fn start(
         &mut self,
         mut delay: cortex_m::delay::Delay,
-        timer: hal::Timer,
         mut imu: ICM_20948,
-        mut radio: Radio,
+        radio: Radio,
         core1: &mut Core,
     ) -> ! {
-        // self.set_speeds([1.0; 4]);
-        // delay.delay_ms(4000);
-        // self.set_speeds([0.0; 4]);
+        if !cfg!(debug_assertions) {
+            delay.delay_us(4206969);
+        } // delay for calibration if im not debuggin
 
         imu.init(&mut delay).unwrap();
 
@@ -119,15 +129,20 @@ impl FlightSystem {
             let _clock = CoreStateLock::claim();
             CORESTATE = Some(DroneCoreState {
                 last_input: initial_command,
-                last_acc: imu.get_acc().0,
-                adt: [0, imu.get_acc().1],
-                last_gyr: imu.get_gyr().0,
-                tdt: [0, imu.get_gyr().1],
+                last_acc: imu.get_acc(),
+                last_gyr: imu.get_gyr(),
                 current_command: DroneCommand::FallOutOfTheSky,
             })
         }
+        let mut g = 0.0;
+        for _ in 0..CAL_LENGTH {
+            imu.update_raw_acc().unwrap();
+            g += cartesian_to_polar_magnitude(imu.get_acc());
+        }
+        g /= CAL_LENGTH as f32;
+        self.gyro_filter.g_measured2g_true = 1.0 / g;
         let _core1task = core1.spawn(unsafe { &mut CORE1_STACK.mem }, || {
-            Self::core1_task(delay, timer, imu, radio)
+            Self::core1_task(delay, imu, radio)
         });
         self.core0_task();
     }
@@ -135,7 +150,6 @@ impl FlightSystem {
     fn core1_task(
         //read from stuff and update states
         mut delay: cortex_m::delay::Delay,
-        timer: hal::Timer,
         mut imu: ICM_20948,
         mut radio: Radio,
     ) -> ! {
@@ -143,10 +157,10 @@ impl FlightSystem {
         let mut failed_radio: u16 = 0;
         let mut newimu = false;
         let mut newradio = false;
-        let radio_div: u8 = 6;
-        let mut count: u8 = 1;
+        let mut num_overrun = 0;
         loop {
-            newimu = match imu.update_all(&mut delay, &timer) {
+            // theres a race condition somewhere here i think
+            newimu = match imu.update_all(&mut delay) {
                 Ok(()) => {
                     failed_imu = 0;
                     true
@@ -157,30 +171,36 @@ impl FlightSystem {
                     false
                 }
             };
-            if count == radio_div {
-                count = 1;
-                newradio = match radio.read() {
-                    Ok(()) => {
-                        failed_radio = 0;
-                        true
-                    }
-                    Err(e) => {
-                        failed_radio += 0;
-                        false
-                    }
-                };
-            } else {
-                count += 1;
-            }
+            newradio = match radio.read() {
+                Ok(()) => {
+                    failed_radio = 0;
+                    // info!("works {}", num_overrun);
+                    true
+                }
+                Err(e) => {
+                    failed_radio += 1;
+                    match e {
+                        RadioError::NoNewData => (),
+                        RadioError::ChecksumError => info!("radio no work :("),
+                        RadioError::ReadError(r) => match r {
+                            Some(t) => match t {
+                                rp2040_hal::uart::ReadErrorType::Overrun => {
+                                    num_overrun += 1;
+                                    info!("overrun")
+                                }
+                                _ => info!("not"),
+                            },
+                            None => info!("first bad"),
+                        },
+                    };
+                    false
+                }
+            };
             unsafe {
                 let mut newstate = CORESTATE.clone().unwrap();
                 if newimu {
-                    let acc = imu.get_acc();
-                    let gyr = imu.get_gyr();
-                    newstate.last_acc = acc.0;
-                    newstate.last_gyr = gyr.0;
-                    newstate.adt = [newstate.adt[1], acc.1];
-                    newstate.tdt = [newstate.tdt[1], gyr.1];
+                    newstate.last_acc = imu.get_acc();
+                    newstate.last_gyr = imu.get_gyr();
                 } else if failed_imu > IMU_FAILURE_THRESHOLD {
                     newstate.current_command = DroneCommand::FallOutOfTheSky;
                 }
@@ -188,17 +208,14 @@ impl FlightSystem {
                     newstate.last_input = radio.get_command();
                     newstate.current_command = match newstate.last_input.mode_select {
                         1 => DroneCommand::NormalControl,
-                        0 => DroneCommand::FullManual,
-                        2 => DroneCommand::FallOutOfTheSky,
-                        _ => newstate.current_command,
+                        2 => DroneCommand::FullManual,
+                        _ => DroneCommand::FallOutOfTheSky,
                     }
+                } else if failed_radio > RADIO_TEMPORARY_FAILURE_THRESHOLD {
+                    newstate.current_command = DroneCommand::Land;
+                } else if failed_radio > RADIO_FULL_FAILURE_THRESHOLD {
+                    newstate.current_command = DroneCommand::FallOutOfTheSky;
                 }
-                // if failed_radio > RADIO_FULL_FAILURE_THRESHOLD {
-                //     newstate.current_command = DroneCommand::Land;
-                // } else
-                // if failed_radio > RADIO_TEMPORARY_FAILURE_THRESHOLD {
-                //     newstate.current_command = DroneCommand::FallOutOfTheSky;
-                // }
                 let _clock = CoreStateLock::claim();
                 CORESTATE = Some(newstate);
             }
@@ -206,16 +223,8 @@ impl FlightSystem {
     }
 
     fn core0_task(&mut self) -> ! {
-        let mut theta = 0.0;
-        // for i in 0..CAL_LENGTH {
-        //     let mut current_state = None;
-        //     unsafe {
-        //         let _clock = CoreStateLock::claim();
-        //         current_state = CORESTATE.clone();
-        //         let current_state = current_state.unwrap();
-        //     }
-
-        // }
+        let ticks2sec = 1.0 / 1000000.0;
+        let mut maxovern: MaxOverN<500> = MaxOverN::new();
         loop {
             let mut current_state = None;
             unsafe {
@@ -223,29 +232,42 @@ impl FlightSystem {
                 current_state = CORESTATE.clone();
             }
             let current_state = current_state.unwrap();
+
+            let aux = current_state.last_input.aux;
+            let throttle = current_state.last_input.z_throttle;
+
             let a = current_state.last_acc;
             let w = current_state.last_gyr;
-            let adt = (current_state.adt[1] - current_state.adt[0]) as f32 / 1000000.0;
-            let tdt = (current_state.tdt[1] - current_state.tdt[0]) as f32 / 1000000.0;
-            theta += w[2] * tdt;
-            info!("{:#?}", theta);
-            // info!("{}Hz", 1.0 / tdt);
-            let throttle = current_state.last_input.z_throttle;
-            let aux = current_state.last_input.aux;
+
+            let dticks = self.timer.get_counter().ticks() - self.last_time;
+            self.last_time += dticks;
+            let dt = dticks as f32 * ticks2sec;
+
+            self.gyro_filter.push(a, w, dt);
+            let theta = self.gyro_filter.last_value;
+
+            let desired_angle: [f32; 2] = [
+                current_state.last_input.x_throttle * MAX_TILT,
+                current_state.last_input.y_throttle * MAX_TILT,
+            ];
+            let desired_wz: f32 = current_state.last_input.twist_throttle * MAX_TWIST;
+
+            // info!(
+            //     "{:#?}d",
+            //     [
+            //         roundf(theta[0] * 1000.0) / 1000.0,
+            //         roundf(theta[1] * 1000.0) / 1000.0
+            //     ]
+            // );
+            // let maxar = maxovern.get(a_r);
+            // info!("{}g", roundf(maxar * invg * 10000.0) / 10000.0);
+            info!("{} Hz", 1.0 / dt);
+            // info!("{}", aux);
             // info!("{}", throttle);
             match current_state.current_command {
                 DroneCommand::FullManual => self.full_manual(current_state.last_input),
                 DroneCommand::NormalControl => {
-                    let desired_angle: [f32; 2] = [
-                        current_state.last_input.x_throttle * MAX_TILT,
-                        current_state.last_input.y_throttle * MAX_TILT,
-                    ];
-                    // ignored for now
-                    let desired_twist: f32 = current_state.last_input.twist_throttle * MAX_TWIST;
-                    self.normal_control(throttle, desired_angle, desired_twist, a, w, adt, tdt, aux)
-                }
-                DroneCommand::Hover => {
-                    self.normal_control(throttle, [0.0; 2], 0.0, a, w, adt, tdt, aux)
+                    self.normal_control(throttle, desired_angle, desired_wz, theta, w[2], dt, aux)
                 }
                 DroneCommand::Calibrate => self.set_speeds([throttle; 4]),
                 _ => self.fall_out_of_the_sky(),
@@ -258,10 +280,9 @@ impl FlightSystem {
         throttle: f32,
         desired_angle: [f32; 2],
         desired_wz: f32,
-        a: [f32; 3],
-        w: [f32; 3],
-        adt: f32,
-        tdt: f32,
+        theta: [f32; 2],
+        wz: f32,
+        dt: f32,
         aux: f32,
     ) {
         // start .0001 go factors of 10 for kd
@@ -271,26 +292,24 @@ impl FlightSystem {
 
         let mut new_speeds = [throttle; 4];
 
-        // probably need kalman filter and dtheta influence for v_xy > 0
-        let measured_angle = cartesian_to_polar_theta(a, true);
-        let error_x = desired_angle[0] - measured_angle[0];
-        let error_y = desired_angle[1] - measured_angle[1];
-        let error_wz = desired_wz + w[2]; // it was the wrong way so add??
+        let error_x = desired_angle[0] - theta[0];
+        let error_y = desired_angle[1] - theta[1];
+        let error_wz = desired_wz + wz; // it was the wrong way so add??
 
-        self.zpd.k_d = tuner * 100.0;
+        self.zpd.k_p = tuner * 100.0;
 
         let x = if error_x > 1.0 || error_x < -1.0 {
-            self.xpd.get_next(error_x, adt)
+            self.xpd.get_next(error_x, dt)
         } else {
             0.0
         };
         let y = if error_y > 1.0 || error_y < -1.0 {
-            self.ypd.get_next(error_y, adt)
+            self.ypd.get_next(error_y, dt)
         } else {
             0.0
         };
         let z = if error_wz > 0.0 || error_wz < 1.0 {
-            self.zpd.get_next(error_wz, tdt)
+            self.zpd.get_next(error_wz, dt)
         } else {
             0.0
         };
