@@ -1,3 +1,4 @@
 code/debug/
 code/target/
 code/Cargo.lock
+.idea

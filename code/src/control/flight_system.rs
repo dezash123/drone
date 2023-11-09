@@ -18,9 +18,10 @@ use super::radio::RadioError;
 
 #[derive(Clone, Copy, Debug, Format)]
 pub struct DroneCoreState {
-    last_input: RadioCommand,
-    last_acc: [f32; 3], // x, y, z
-    last_gyr: [f32; 3],
+    true_acceleration: [f32; 3], //best estimate
+    desired_acceleration: [f32; 3],
+    true_angle: [f32; 2], //best estimate
+    desired_angle: [f32; 2],
     current_command: DroneCommand,
 }
 
@@ -50,28 +51,6 @@ const RADIO_FULL_FAILURE_THRESHOLD: u16 = 2000;
 // 1-2ms PWM
 const MAX_THROTTLE: u16 = 0xCCCC;
 const MIN_THROTTLE: u16 = 0x6666;
-// "multishot" (30kHz pwm) couldn't get it to work
-// const MAX_THROTTLE: u16 = 50000;
-// const MIN_THROTTLE: u16 = 10000;
-
-// PIDS!!!!!
-const KPX: f32 = 0.0;
-const KIX: f32 = 0.0;
-const KDX: f32 = 0.0;
-const KPY: f32 = 0.0;
-const KIY: f32 = 0.0;
-const KDY: f32 = 0.0;
-const KPZ: f32 = 0.06;
-const KIZ: f32 = 0.0;
-const KDZ: f32 = 0.0;
-
-// weight on accelerometer measurements
-const A_WEIGHT: f32 = 0.3;
-
-// instantaneous angle measurement error at which switch to accelerometer trig
-const MAX_THETA_ERROR: f32 = 2.0;
-
-const MAX_XY_A: f32 = 1.07;
 
 //percent difference for manual control
 const MAX_THROTTLE_DIFFERENCE: f32 = 0.1;
@@ -81,11 +60,6 @@ pub struct FlightSystem {
     bl: Channel<Pwm1, FreeRunning, A>,
     br: Channel<Pwm2, FreeRunning, A>,
     fr: Channel<Pwm3, FreeRunning, A>,
-    xpd: PD,
-    ypd: PD,
-    zpd: PD,
-    gyro_filter: GyroFilter,
-    last_time: u64,
     timer: hal::Timer,
 }
 
@@ -102,11 +76,6 @@ impl FlightSystem {
             bl,
             br,
             fr,
-            xpd: PD::new(KPX, KDX),
-            ypd: PD::new(KPY, KDY),
-            zpd: PD::new(KPZ, KDZ),
-            gyro_filter: GyroFilter::new(MAX_XY_A, MAX_THETA_ERROR, A_WEIGHT),
-            last_time: timer.get_counter().ticks(),
             timer,
         }
     }
@@ -120,7 +89,7 @@ impl FlightSystem {
     ) -> ! {
         if !cfg!(debug_assertions) {
             delay.delay_us(4206969);
-        } // delay for calibration if im not debuggin
+        } // delay before calibration if im not debuggin, g
 
         imu.init(&mut delay).unwrap();
 
@@ -140,7 +109,6 @@ impl FlightSystem {
             g += cartesian_to_polar_magnitude(imu.get_acc());
         }
         g /= CAL_LENGTH as f32;
-        self.gyro_filter.g_measured2g_true = 1.0 / g;
         let _core1task = core1.spawn(unsafe { &mut CORE1_STACK.mem }, || {
             Self::core1_task(delay, imu, radio)
         });
@@ -155,9 +123,8 @@ impl FlightSystem {
     ) -> ! {
         let mut failed_imu: u8 = 0;
         let mut failed_radio: u16 = 0;
-        let mut newimu = false;
-        let mut newradio = false;
-        let mut num_overrun = 0;
+        let mut newimu: bool = false;
+        let mut newradio: bool = false;
         loop {
             // theres a race condition somewhere here i think
             newimu = match imu.update_all(&mut delay) {
@@ -185,7 +152,6 @@ impl FlightSystem {
                         RadioError::ReadError(r) => match r {
                             Some(t) => match t {
                                 rp2040_hal::uart::ReadErrorType::Overrun => {
-                                    num_overrun += 1;
                                     info!("overrun")
                                 }
                                 _ => info!("not"),
@@ -251,14 +217,6 @@ impl FlightSystem {
                 current_state.last_input.y_throttle * MAX_TILT,
             ];
             let desired_wz: f32 = current_state.last_input.twist_throttle * MAX_TWIST;
-
-            // info!(
-            //     "{:#?}d",
-            //     [
-            //         roundf(theta[0] * 1000.0) / 1000.0,
-            //         roundf(theta[1] * 1000.0) / 1000.0
-            //     ]
-            // );
             // let maxar = maxovern.get(a_r);
             // info!("{}g", roundf(maxar * invg * 10000.0) / 10000.0);
             info!("{} Hz", 1.0 / dt);
@@ -285,39 +243,6 @@ impl FlightSystem {
         dt: f32,
         aux: f32,
     ) {
-        // start .0001 go factors of 10 for kd
-        // start 1 for kp factors of 10
-        // this was bad advice ^ lol
-        let tuner = aux;
-
-        let mut new_speeds = [throttle; 4];
-
-        let error_x = desired_angle[0] - theta[0];
-        let error_y = desired_angle[1] - theta[1];
-        let error_wz = desired_wz + wz; // it was the wrong way so add??
-
-        self.zpd.k_p = tuner * 100.0;
-
-        let x = if error_x > 1.0 || error_x < -1.0 {
-            self.xpd.get_next(error_x, dt)
-        } else {
-            0.0
-        };
-        let y = if error_y > 1.0 || error_y < -1.0 {
-            self.ypd.get_next(error_y, dt)
-        } else {
-            0.0
-        };
-        let z = if error_wz > 0.0 || error_wz < 1.0 {
-            self.zpd.get_next(error_wz, dt)
-        } else {
-            0.0
-        };
-
-        new_speeds[0] += x - y + z;
-        new_speeds[1] += -x - y - z;
-        new_speeds[2] += -x + y + z;
-        new_speeds[3] += x + y - z;
 
         self.unreliable_speeds(&mut new_speeds);
 
