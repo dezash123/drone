@@ -22,6 +22,7 @@ pub struct DroneCoreState {
     desired_acceleration: [f32; 3],
     true_angle: [f32; 2], //best estimate
     desired_angle: [f32; 2],
+    measurement_time: u64,
     current_command: DroneCommand,
 }
 
@@ -43,7 +44,6 @@ static mut CORE1_STACK: Stack<8192> = Stack::new();
 
 // arbitrary max values
 const MAX_TWIST: f32 = 100.0; //dps
-const MAX_TILT: f32 = 20.0; //degrees
 const CAL_LENGTH: u32 = 1000; //number of cycles
 const IMU_FAILURE_THRESHOLD: u8 = 100;
 const RADIO_TEMPORARY_FAILURE_THRESHOLD: u16 = 100;
@@ -51,6 +51,8 @@ const RADIO_FULL_FAILURE_THRESHOLD: u16 = 2000;
 // 1-2ms PWM
 const MAX_THROTTLE: u16 = 0xCCCC;
 const MIN_THROTTLE: u16 = 0x6666;
+
+const MAX_THRUST: f32 = 20.0; // m/s^2
 
 //percent difference for manual control
 const MAX_THROTTLE_DIFFERENCE: f32 = 0.1;
@@ -92,16 +94,20 @@ impl FlightSystem {
         } // delay before calibration if im not debuggin, g
 
         imu.init(&mut delay).unwrap();
-
+        imu.update_all(&mut delay).unwrap();
         let initial_command = radio.get_command();
         unsafe {
             let _clock = CoreStateLock::claim();
-            CORESTATE = Some(DroneCoreState {
-                last_input: initial_command,
-                last_acc: imu.get_acc(),
-                last_gyr: imu.get_gyr(),
-                current_command: DroneCommand::FallOutOfTheSky,
-            })
+            CORESTATE = Some(
+                DroneCoreState {
+                    true_acceleration: imu.get_acc(),
+                    desired_acceleration: [0.0,0.0,0.0],
+                    true_angle: cartesian_to_polar_theta(imu.get_acc(), true),
+                    desired_angle: [0.0,0.0],
+                    measurement_time: self.timer.get_counter().ticks(),
+                    current_command: DroneCommand::FallOutOfTheSky,
+                }
+            )
         }
         let mut g = 0.0;
         for _ in 0..CAL_LENGTH {
@@ -162,10 +168,16 @@ impl FlightSystem {
                     false
                 }
             };
+            if newimu {
+                let measured_acceleration = imu.get_acc();
+                let measured_angular_velocity = imu.get_gyr();
+                // black magic
+
+            }
             unsafe {
                 let mut newstate = CORESTATE.clone().unwrap();
                 if newimu {
-                    newstate.last_acc = imu.get_acc();
+                    newstate.tr = imu.get_acc();
                     newstate.last_gyr = imu.get_gyr();
                 } else if failed_imu > IMU_FAILURE_THRESHOLD {
                     newstate.current_command = DroneCommand::FallOutOfTheSky;

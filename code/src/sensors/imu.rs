@@ -174,8 +174,41 @@ const MAG_CNTL2_MODE_CONT4: u8 = 8;
 const MAG_CNTL2_MODE_TEST: u8 = 16;
 const MAG_CNTL3: u8 = 0x32;
 
-const ACC_DIV: f32 = 4.0 / 32768.0;
-const GYR_DIV: f32 = 250.0 / 32768.0;
+enum AccelerometerSetting {
+    r2g,
+    r4g,
+    r8g,
+    r16g,
+}
+
+impl AccelerometerSetting {
+    pub fn get_mult(self) -> f32 {
+        match self {
+            r2g => 2.0 / 32768.0,
+            r4g => 4.0 / 32768.0,
+            r8g => 8.0 / 32768.0,
+            r16g => 16.0 / 32768.0,
+        }
+    }
+}
+
+enum GyroSetting {
+    r250dps,
+    r500dps,
+    r1000dps,
+    r2000dps,
+}
+
+impl GyroSetting {
+    pub fn get_mult(self) -> f32 {
+        match self {
+            r250dps => 250.0 / 32768.0,
+            r500dps => 500.0 / 32768.0,
+            r1000dps => 1000.0 / 32768.0,
+            r2000dps => 2000.0 / 32768.0,
+        }
+    }
+}
 
 pub struct ICM_20948 {
     bank: u8,
