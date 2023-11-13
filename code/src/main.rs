@@ -19,6 +19,7 @@ use panic_probe as _;
 use rp2040_hal as hal;
 use rp2040_hal::multicore::Multicore;
 use sensors::imu::{Sensor, ICM_20948};
+use crate::sensors::{AccelerometerSetting, GyroSetting};
 
 #[link_section = ".boot2"]
 #[used]
@@ -54,6 +55,8 @@ fn main() -> ! {
     let timer = hal::Timer::new(pac.TIMER, &mut pac.RESETS);
     let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
     let mut imu = ICM_20948::new(
+        AccelerometerSetting::r4g,
+        GyroSetting::r250dps,
         pac.I2C0,
         pins.gpio24.into_mode(),
         pins.gpio25.into_mode(),

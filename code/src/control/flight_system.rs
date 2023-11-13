@@ -9,10 +9,11 @@ use embedded_hal::PwmPin;
 use hal::pwm::{Channel, FreeRunning, Pwm0, Pwm1, Pwm2, Pwm3, A};
 use hal::sio::Spinlock0 as CoreStateLock;
 use hal::uart::{ReadError, ReadErrorType};
-use libm::{cosf, powf, roundf};
+use libm::{cosf, powf, roundf, acosf};
 
 use hal::multicore::{Core, Stack};
 use rp2040_hal as hal;
+use rp2040_hal::rom_data::float_funcs::fsqrt;
 
 use super::radio::RadioError;
 
@@ -22,12 +23,15 @@ pub struct DroneCoreState {
     desired_acceleration: [f32; 3],
     true_angle: [f32; 2], //best estimate
     desired_angle: [f32; 2],
-    measurement_time: u64,
+    angular_velocity: [f32; 3],
+    desired_twist: f32,
+    aux: f32,
     current_command: DroneCommand,
+    raw_command: RadioCommand, // vestigial
 }
 
 #[derive(Clone, Copy)]
-pub struct DronePeripheralState {}
+pub struct DronePeripheralState {} // for when I add more things
 
 #[derive(Clone, Copy, Format, Debug, PartialEq)]
 pub enum DroneCommand {
@@ -44,6 +48,7 @@ static mut CORE1_STACK: Stack<8192> = Stack::new();
 
 // arbitrary max values
 const MAX_TWIST: f32 = 100.0; //dps
+const MAX_TILT: f32 = 20.0; //degrees
 const CAL_LENGTH: u32 = 1000; //number of cycles
 const IMU_FAILURE_THRESHOLD: u8 = 100;
 const RADIO_TEMPORARY_FAILURE_THRESHOLD: u16 = 100;
@@ -51,6 +56,7 @@ const RADIO_FULL_FAILURE_THRESHOLD: u16 = 2000;
 // 1-2ms PWM
 const MAX_THROTTLE: u16 = 0xCCCC;
 const MIN_THROTTLE: u16 = 0x6666;
+const TICKS2SEC: f32 = 1.0f32 / 1000000.0f32;
 
 const MAX_THRUST: f32 = 20.0; // m/s^2
 
@@ -62,6 +68,7 @@ pub struct FlightSystem {
     bl: Channel<Pwm1, FreeRunning, A>,
     br: Channel<Pwm2, FreeRunning, A>,
     fr: Channel<Pwm3, FreeRunning, A>,
+    last_time: u64,
     timer: hal::Timer,
 }
 
@@ -78,6 +85,7 @@ impl FlightSystem {
             bl,
             br,
             fr,
+            last_time: timer.get_counter().ticks(),
             timer,
         }
     }
@@ -91,7 +99,7 @@ impl FlightSystem {
     ) -> ! {
         if !cfg!(debug_assertions) {
             delay.delay_us(4206969);
-        } // delay before calibration if im not debuggin, g
+        } // delay before calibration if im not debuggin g
 
         imu.init(&mut delay).unwrap();
         imu.update_all(&mut delay).unwrap();
@@ -104,8 +112,11 @@ impl FlightSystem {
                     desired_acceleration: [0.0,0.0,0.0],
                     true_angle: cartesian_to_polar_theta(imu.get_acc(), true),
                     desired_angle: [0.0,0.0],
-                    measurement_time: self.timer.get_counter().ticks(),
+                    angular_velocity: [0.0,0.0,0.0],
+                    desired_twist: 0.0,
+                    aux: initial_command.aux,
                     current_command: DroneCommand::FallOutOfTheSky,
+                    raw_command: initial_command,
                 }
             )
         }
@@ -115,14 +126,15 @@ impl FlightSystem {
             g += cartesian_to_polar_magnitude(imu.get_acc());
         }
         g /= CAL_LENGTH as f32;
-        let _core1task = core1.spawn(unsafe { &mut CORE1_STACK.mem }, || {
-            Self::core1_task(delay, imu, radio)
+        let _core1task = core1.spawn(unsafe { &mut CORE1_STACK.mem }, move || {
+            Self::core1_task(g, delay, imu, radio)
         });
         self.core0_task();
     }
 
     fn core1_task(
         //read from stuff and update states
+        g: f32,
         mut delay: cortex_m::delay::Delay,
         mut imu: ICM_20948,
         mut radio: Radio,
@@ -168,27 +180,42 @@ impl FlightSystem {
                     false
                 }
             };
-            if newimu {
-                let measured_acceleration = imu.get_acc();
-                let measured_angular_velocity = imu.get_gyr();
-                // black magic
-
-            }
             unsafe {
-                let mut newstate = CORESTATE.clone().unwrap();
+                let mut newstate: DroneCoreState = CORESTATE.clone().unwrap();
                 if newimu {
-                    newstate.tr = imu.get_acc();
-                    newstate.last_gyr = imu.get_gyr();
+                    let measured_acceleration: [f32; 3] = imu.get_acc();
+                    let measured_angular_velocity: [f32; 3] = imu.get_gyr();
+                    if measured_acceleration[0] == 0.0 && measured_acceleration[1] == 0.0 {
+                        newstate.true_angle = [0.0,0.0];
+                    } else {
+                        let projection_constant: f32 = 1.0f32 / fsqrt(measured_acceleration[0] * measured_acceleration[0] + measured_acceleration[1] * measured_acceleration[1]);
+                        newstate.true_angle = [acosf(measured_acceleration[0] * projection_constant), acosf(measured_acceleration[1] * projection_constant)];
+                    }
+                    // TODO
+                    // newstate.true_acceleration = [ , , -g];
+
                 } else if failed_imu > IMU_FAILURE_THRESHOLD {
                     newstate.current_command = DroneCommand::FallOutOfTheSky;
                 }
                 if newradio {
-                    newstate.last_input = radio.get_command();
-                    newstate.current_command = match newstate.last_input.mode_select {
+                    let radio_command: RadioCommand = radio.get_command();
+                    // TODO
+                    // figure out how to denormalize (?)
+                    newstate.desired_acceleration = [radio_command.x_throttle, radio_command.y_throttle, radio_command.z_throttle + g];
+                    if newstate.desired_acceleration[0] == 0.0 && newstate.desired_acceleration[1] == 0.0 {
+                        newstate.desired_angle = [0.0,0.0];
+                    } else {
+                        // TODO
+                        // let projection_constant: f32 = 1.0f32 / fsqrt(newstate.desired_acceleration[0] * newstate.desired_acceleration[0] + newstate.desired_acceleration[1] * newstate.desired_acceleration[1]);
+                        // newstate.desired_angle = [acosf(newstate.desired_acceleration[0] * projection_constant), acosf(newstate.desired_acceleration[1] * projection_constant)];
+
+                    }
+                    newstate.current_command = match radio_command.mode_select {
                         1 => DroneCommand::NormalControl,
                         2 => DroneCommand::FullManual,
                         _ => DroneCommand::FallOutOfTheSky,
-                    }
+                    };
+                    newstate.raw_command = radio_command;
                 } else if failed_radio > RADIO_TEMPORARY_FAILURE_THRESHOLD {
                     newstate.current_command = DroneCommand::Land;
                 } else if failed_radio > RADIO_FULL_FAILURE_THRESHOLD {
@@ -200,9 +227,8 @@ impl FlightSystem {
         }
     }
 
-    fn core0_task(&mut self) -> ! {
-        let ticks2sec = 1.0 / 1000000.0;
-        let mut maxovern: MaxOverN<500> = MaxOverN::new();
+    fn core0_task(&mut self) -> ! { // must do dt here
+        // let mut maxovern: MaxOverN<500> = MaxOverN::new();
         loop {
             let mut current_state = None;
             unsafe {
@@ -211,35 +237,18 @@ impl FlightSystem {
             }
             let current_state = current_state.unwrap();
 
-            let aux = current_state.last_input.aux;
-            let throttle = current_state.last_input.z_throttle;
-
-            let a = current_state.last_acc;
-            let w = current_state.last_gyr;
-
-            let dticks = self.timer.get_counter().ticks() - self.last_time;
+            let dticks: u64 = self.timer.get_counter().ticks() - self.last_time;
             self.last_time += dticks;
-            let dt = dticks as f32 * ticks2sec;
+            let dt: f32 = dticks as f32 * TICKS2SEC;
 
-            self.gyro_filter.push(a, w, dt);
-            let theta = self.gyro_filter.last_value;
-
-            let desired_angle: [f32; 2] = [
-                current_state.last_input.x_throttle * MAX_TILT,
-                current_state.last_input.y_throttle * MAX_TILT,
-            ];
-            let desired_wz: f32 = current_state.last_input.twist_throttle * MAX_TWIST;
-            // let maxar = maxovern.get(a_r);
-            // info!("{}g", roundf(maxar * invg * 10000.0) / 10000.0);
             info!("{} Hz", 1.0 / dt);
-            // info!("{}", aux);
-            // info!("{}", throttle);
+
             match current_state.current_command {
-                DroneCommand::FullManual => self.full_manual(current_state.last_input),
+                DroneCommand::FullManual => self.full_manual(current_state.raw_command),
                 DroneCommand::NormalControl => {
-                    self.normal_control(throttle, desired_angle, desired_wz, theta, w[2], dt, aux)
+                    self.normal_control(current_state, dt)
                 }
-                DroneCommand::Calibrate => self.set_speeds([throttle; 4]),
+                DroneCommand::Calibrate => self.set_speeds([current_state.raw_command.z_throttle; 4]),
                 _ => self.fall_out_of_the_sky(),
             }
         }
@@ -247,18 +256,10 @@ impl FlightSystem {
 
     fn normal_control(
         &mut self,
-        throttle: f32,
-        desired_angle: [f32; 2],
-        desired_wz: f32,
-        theta: [f32; 2],
-        wz: f32,
+        current_state: DroneCoreState,
         dt: f32,
-        aux: f32,
     ) {
-
-        self.unreliable_speeds(&mut new_speeds);
-
-        info!("{}", tuner);
+        // black magic
     }
 
     fn unreliable_speeds(&mut self, new_speeds: &mut [f32; 4]) {

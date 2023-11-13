@@ -174,7 +174,7 @@ const MAG_CNTL2_MODE_CONT4: u8 = 8;
 const MAG_CNTL2_MODE_TEST: u8 = 16;
 const MAG_CNTL3: u8 = 0x32;
 
-enum AccelerometerSetting {
+pub enum AccelerometerSetting {
     r2g,
     r4g,
     r8g,
@@ -182,17 +182,17 @@ enum AccelerometerSetting {
 }
 
 impl AccelerometerSetting {
-    pub fn get_mult(self) -> f32 {
+    pub fn get_mult(&self) -> f32 {
         match self {
-            r2g => 2.0 / 32768.0,
-            r4g => 4.0 / 32768.0,
-            r8g => 8.0 / 32768.0,
-            r16g => 16.0 / 32768.0,
+            Self::r2g => 2.0 / 32768.0,
+            Self::r4g => 4.0 / 32768.0,
+            Self::r8g => 8.0 / 32768.0,
+            Self::r16g => 16.0 / 32768.0,
         }
     }
 }
 
-enum GyroSetting {
+pub enum GyroSetting {
     r250dps,
     r500dps,
     r1000dps,
@@ -200,17 +200,19 @@ enum GyroSetting {
 }
 
 impl GyroSetting {
-    pub fn get_mult(self) -> f32 {
+    pub fn get_mult(&self) -> f32 {
         match self {
-            r250dps => 250.0 / 32768.0,
-            r500dps => 500.0 / 32768.0,
-            r1000dps => 1000.0 / 32768.0,
-            r2000dps => 2000.0 / 32768.0,
+            Self::r250dps => 250.0 / 32768.0,
+            Self::r500dps => 500.0 / 32768.0,
+            Self::r1000dps => 1000.0 / 32768.0,
+            Self::r2000dps => 2000.0 / 32768.0,
         }
     }
 }
 
 pub struct ICM_20948 {
+    accelerometer_range: AccelerometerSetting,
+    gyro_range: GyroSetting,
     bank: u8,
     raw_acc: [u8; 6],
     last_acc: u64,
@@ -229,6 +231,8 @@ pub struct ICM_20948 {
 
 impl ICM_20948 {
     pub fn new(
+        accelerometer_range: AccelerometerSetting,
+        gyro_range: GyroSetting,
         i2c0: pac::I2C0,
         sda_pin: Pin<Gpio24, Function<hal::gpio::I2C>>,
         scl_pin: Pin<Gpio25, Function<hal::gpio::I2C>>,
@@ -241,6 +245,8 @@ impl ICM_20948 {
             Err(e) => info!("no read imu"),
         };
         Self {
+            accelerometer_range,
+            gyro_range,
             bank: firstbank[0] << 2 >> 6,
             raw_acc: [0; 6],
             last_acc: 0,
@@ -268,7 +274,12 @@ impl ICM_20948 {
         // chatgpt said these were good values for NBW
         self.imu_write(GYRO_SR8_DIV, 0x00)?;
         // f = 1.125 kHz / (1 + div as u8)
-        self.imu_write(GYRO_CONFIG_1, 0b00_111_00_1)?;
+        self.imu_write(GYRO_CONFIG_1, 0b00_111_00_1 | (match &self.gyro_range {
+            GyroSetting::r250dps => 0,
+            GyroSetting::r500dps => 1,
+            GyroSetting::r1000dps => 2,
+            GyroSetting::r2000dps => 3,
+        } << 1))?;
         // 7:6 resv
         // 5:3 look at table for NBW, 111 = 375Hz NBW
         // 2:1 00 = +-250, 01 = 500, 10 = 1000, 11 = 2000
@@ -277,7 +288,12 @@ impl ICM_20948 {
         self.imu_write(ACC_SMPLRT_DIV_1, 0x00)?; // msb
         self.imu_write(ACC_SMPLRT_DIV_2, 0x00)?;
         // f = 1.125 kHz / (1 + div as u16)
-        self.imu_write(ACC_CONFIG, 0b00_011_01_1)?;
+        self.imu_write(ACC_CONFIG, 0b00_011_00_1 | (match &self.accelerometer_range {
+            AccelerometerSetting::r2g => 0,
+            AccelerometerSetting::r4g => 1,
+            AccelerometerSetting::r8g => 2,
+            AccelerometerSetting::r16g => 3,
+        } << 1))?;
         // 7:6 resv
         // 5:3 look at table for NBW, 011 = 69Hz NBW
         // 2:1 00 = +-2g, 01 = 4, 10 = 8, 11 = 16
@@ -454,11 +470,12 @@ impl Accelerometer for ICM_20948 {
         result
     }
     fn get_acc(&self) -> [f32; 3] {
+        let mult = self.accelerometer_range.get_mult();
         // meters per sec
         [
-            f32::from(i16::from_be_bytes([self.raw_acc[0], self.raw_acc[1]])) * ACC_DIV,
-            f32::from(i16::from_be_bytes([self.raw_acc[2], self.raw_acc[3]])) * ACC_DIV,
-            f32::from(i16::from_be_bytes([self.raw_acc[4], self.raw_acc[5]])) * ACC_DIV,
+            f32::from(i16::from_be_bytes([self.raw_acc[0], self.raw_acc[1]])) * mult,
+            f32::from(i16::from_be_bytes([self.raw_acc[2], self.raw_acc[3]])) * mult,
+            f32::from(i16::from_be_bytes([self.raw_acc[4], self.raw_acc[5]])) * mult,
         ]
     }
 }
@@ -477,11 +494,12 @@ impl Gyroscope for ICM_20948 {
         result
     }
     fn get_gyr(&self) -> [f32; 3] {
+        let mult = self.gyro_range.get_mult();
         // degrees per sec
         [
-            f32::from(i16::from_be_bytes([self.raw_gyr[0], self.raw_gyr[1]])) * GYR_DIV,
-            f32::from(i16::from_be_bytes([self.raw_gyr[2], self.raw_gyr[3]])) * GYR_DIV,
-            f32::from(i16::from_be_bytes([self.raw_gyr[4], self.raw_gyr[5]])) * GYR_DIV,
+            f32::from(i16::from_be_bytes([self.raw_gyr[0], self.raw_gyr[1]])) * mult,
+            f32::from(i16::from_be_bytes([self.raw_gyr[2], self.raw_gyr[3]])) * mult,
+            f32::from(i16::from_be_bytes([self.raw_gyr[4], self.raw_gyr[5]])) * mult,
         ]
     }
 }
