@@ -21,6 +21,8 @@ heapless = "0.7.16"
 libm = "0.2.7"
 nb = "1.0"
 
+nalgebra = "0.32.3"
+
 # cargo build/run
 [profile.dev]
 codegen-units = 1
